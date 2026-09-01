@@ -83,6 +83,12 @@ contract BallastVault is ERC20, ReentrancyGuard {
      */
     uint256 public constant MAX_POOLS = 64;
 
+    /// @dev Gas ceilings on the per-pool reads in `legTotals`. Generous for a
+    ///      view returning a static struct, and low enough that 64 uncooperative
+    ///      pools still cannot exhaust a block.
+    uint256 private constant POOL_READ_GAS = 150_000;
+    uint256 private constant TOKEN_READ_GAS = 100_000;
+
     /// @notice Hard bound on |YES - NO| across all tracked positions, raw units.
     uint256 public imbalanceCap;
 
@@ -212,14 +218,38 @@ contract BallastVault is ERC20, ReentrancyGuard {
         uint256 n = pools.length;
         for (uint256 i; i < n; ++i) {
             address pool = pools[i];
-            // Deliberately NOT gated on `poolAllowed`. Revoking a pool stops
-            // the operator trading it; it does not make the tokens the vault
-            // still holds there disappear. Skipping revoked pools here would
-            // let one owner call erase depositor value from NAV.
-            IBinaryPool.BinaryPoolParams memory p = IBinaryPool(pool).getBinaryPoolParams();
-            yes += outcomeToken.balanceOf(address(this), p.yesId);
-            no += outcomeToken.balanceOf(address(this), p.noId);
+
+            // Every read below is a capped staticcall that is allowed to fail.
+            //
+            // This is not defensive noise. `legTotals` sits under nav(),
+            // sharePrice(), deposit(), withdraw() and every operator action, so
+            // a plain external call here puts the whole vault — including the
+            // exit — downstream of an address the owner allowlisted once. A
+            // pool that is paused, upgraded, self-destructed or simply
+            // mistyped would otherwise revert this loop and lock depositors
+            // out of their own money permanently.
+            //
+            // A pool that will not answer is counted as zero. That
+            // under-states NAV, which is the same direction every other
+            // approximation here errs in, and is vastly better than bricking.
+            (bool ok, bytes memory raw) =
+                pool.staticcall{gas: POOL_READ_GAS}(abi.encodeWithSelector(IBinaryPool.getBinaryPoolParams.selector));
+            if (!ok || raw.length < 480) continue;
+
+            IBinaryPool.BinaryPoolParams memory p = abi.decode(raw, (IBinaryPool.BinaryPoolParams));
+            yes += _balance(p.yesId);
+            no += _balance(p.noId);
         }
+    }
+
+    /// @dev Capped, failure-tolerant read of one outcome leg. Same reasoning as
+    ///      `legTotals`: the singleton must not be able to brick the vault.
+    function _balance(uint256 id) internal view returns (uint256) {
+        (bool ok, bytes memory raw) = address(outcomeToken).staticcall{gas: TOKEN_READ_GAS}(
+            abi.encodeWithSelector(IOutcomeToken.balanceOf.selector, address(this), id)
+        );
+        if (!ok || raw.length < 32) return 0;
+        return abi.decode(raw, (uint256));
     }
 
     /**

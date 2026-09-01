@@ -200,3 +200,20 @@ contract MockSettlement is IBinarySettlement {
         collateral.mint(address(this), amount);
     }
 }
+
+/// @notice A pool that reverts on the params read. Models a pool that gets
+///         paused, upgraded to something incompatible, or simply goes away.
+contract RevertingPool {
+    function getBinaryPoolParams() external pure returns (IBinaryPool.BinaryPoolParams memory) {
+        revert("pool is gone");
+    }
+}
+
+/// @notice A pool that burns all available gas on the params read.
+contract GasBombPool {
+    function getBinaryPoolParams() external view returns (IBinaryPool.BinaryPoolParams memory p) {
+        uint256 i;
+        while (gasleft() > 5000) i++;
+        p.yesId = i;
+    }
+}
