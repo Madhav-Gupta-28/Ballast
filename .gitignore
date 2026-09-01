@@ -31,3 +31,6 @@ lib/
 # next
 .next/
 next-env.d.ts
+
+# next build info
+*.tsbuildinfo

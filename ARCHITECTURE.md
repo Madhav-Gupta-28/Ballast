@@ -27,6 +27,7 @@ Every on-chain fact was read directly from a live RPC, the DreamDEX indexer, or 
 13. [Invariants](#13-invariants)
 14. [Test plan](#14-test-plan)
 15. [Open items](#15-open-items)
+- [15b. Audit findings](#15b-audit-findings-2-september)
 16. [Sources](#16-sources)
 
 ---
@@ -672,6 +673,44 @@ Each is a property a test must assert, not a hope.
 **Sample cap.** [§4](#4-why-this-venue-needs-this-thing) reflects 5,000 markets — the query limit. True totals may be larger; the ratios are unlikely to improve.
 
 ---
+
+## 15b. Audit findings, 2 September
+
+An adversarial suite (`test/Adversarial.t.sol`) was written to take money out of
+the vault rather than to confirm it works. Three of its tests failed on first
+run. All are fixed and the tests now pass.
+
+| # | Finding | Severity | Fix |
+| --- | --- | --- | --- |
+| 1 | `redeem` is permissionless and burned an **unresolved** position for zero — anyone could destroy live inventory for free. NAV fell 1000 → 950 in the test. | High | Revert when a redemption pays nothing. Covers unresolved markets and losing legs alike. |
+| 2 | `revokePool` erased NAV: `legTotals` skipped revoked pools, so one owner call made 100 of depositor value vanish while the tokens were still held. | Medium | `legTotals` counts every pool in the array. Revoking stops trading only; `purgePool` removes a pool and refuses while it holds anything. |
+| 3 | The pool list grew without bound. `legTotals` costs two external calls per entry and sits under every deposit, withdrawal and operator action; at 151 pools a deposit cost 1.73M gas, and the venue opens pools every few minutes. | Medium | `MAX_POOLS = 64` (deposit: 716k gas), with `purgePool` as the pressure valve. |
+| 4 | `transferOwnership` accepted the zero address, which would leave the cap, allowlist and pause permanently unreachable. | Low | Rejects zero. |
+
+Two dead code paths were also found in the quoter, both invisible to testing:
+
+- **Stale quotes were never cancelled.** The `resting` map was written to but
+  never populated, so `cancelOrders` always received an empty list and old
+  quotes only aged off at expiry — three refresh intervals later, leaving up to
+  three generations resting at once, each escrowing inventory. Order ids now
+  come from the indexer. Masked in testing by order expiry.
+- **Claiming could never have worked.** The loop called `ec-core`'s `maybeClaim`,
+  which redeems the *signer's* holdings; the tokens are held by the vault
+  contract. Replaced with `bot/src/claim.ts`, which sweeps settled markets and
+  redeems through the vault. Only visible as NAV drifting down over hours.
+
+**Measured consequence of the second one**, on the live testnet vault:
+
+```
+settled markets scanned : 60
+positions still held    : 4
+recoverable (winners)   : 2.0000 tUSDC
+worthless (losers)      : 3.0000 tUSDC face
+```
+
+NAV had fallen 500.000 → 497.928. Exactly 2.000 of that is recoverable and was
+stranded by the missing redemption path; the remaining **−0.072 is the real
+trading result** — spread captured minus adverse selection, over two fills.
 
 ## 16. Sources
 
