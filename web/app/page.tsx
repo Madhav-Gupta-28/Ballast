@@ -1,4 +1,5 @@
 import { getMarkets, getVault, fmt, NETWORK, type MarketView } from "@/lib/somnia";
+import VaultPanel from "@/components/VaultPanel";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export default async function Page() {
   const meanOurs = quotable.length ? quotable.reduce((a, m) => a + m.ourSpread!, 0) / quotable.length : 0;
   const savedPct = meanBook > 0 ? ((meanBook - meanOurs) / meanBook) * 100 : 0;
   const gaps = markets.filter((m) => m.gap).length;
+  const stamp = new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
   const untraded = markets.filter((m) => m.tradeCount === 0).length;
 
   return (
@@ -58,15 +60,34 @@ export default async function Page() {
           between them.
         </p>
 
-        <div className="headline">
-          <div className="big">{quotable.length ? `−${savedPct.toFixed(0)}%` : "—"}</div>
-          <div className="side">
-            <h2>Spread compression, live</h2>
-            <p>
-              Across {quotable.length} quotable market{quotable.length === 1 ? "" : "s"} the venue is quoting{" "}
-              {cents(meanBook)} wide. Ballast quotes {cents(meanOurs)}, strictly inside on both sides.
-            </p>
+        <div className="headgrid">
+          <div className="headline">
+            <div className="big">{quotable.length ? `${savedPct.toFixed(0)}%` : "—"}</div>
+            <div className="side">
+              <h2>tighter than the venue &mdash; live, right now</h2>
+              <p>
+                The venue quotes <strong>{cents(meanBook)}</strong> wide. Ballast quotes{" "}
+                <strong>{cents(meanOurs)}</strong>, strictly inside on both sides, across{" "}
+                <strong>
+                  {quotable.length} two-sided market{quotable.length === 1 ? "" : "s"}
+                </strong>
+                {gaps > 0 && (
+                  <>
+                    {" "}
+                    &mdash; and {gaps} more where one side of the book is empty, so a taker cannot be
+                    filled there at any price
+                  </>
+                )}
+                .
+              </p>
+              <p className="srcline">
+                Read from the DreamDEX indexer at {stamp}, priced by the same module the quoter posts
+                with. Reload to recompute it against the live book.
+              </p>
+            </div>
           </div>
+
+          <VaultPanel vault={VAULT} />
         </div>
 
         <div className="stats">
@@ -183,7 +204,8 @@ export default async function Page() {
         <p className="note">
           {untraded > 0 && (
             <>
-              {untraded} of these {markets.length} markets has never seen a single trade.{" "}
+              {untraded} of these {markets.length} markets {untraded === 1 ? "has" : "have"} never seen a
+              single trade.{" "}
             </>
           )}
           Across 5,000 settled markets on mainnet, 83.5% never traded at all and lifetime volume is 3,834

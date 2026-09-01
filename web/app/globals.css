@@ -90,3 +90,62 @@ td.num { text-align: right; }
 .note { margin-top: 14px; font-size: 13px; color: var(--muted); }
 footer { margin-top: 46px; padding-top: 18px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--muted); }
 a { color: var(--sea); }
+
+/* ── deposit / withdraw panel ── */
+.panel {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 12px;
+}
+.panel-h {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+.panel-empty { margin: 0; color: var(--ink-2); font-size: 13.5px; }
+
+.posrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.posrow .k { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.posrow .v { font-size: 17px; font-weight: 600; margin-top: 2px; }
+.posrow .v.sea { color: var(--sea); }
+.posrow .unit { font-size: 11px; color: var(--muted); font-weight: 500; }
+
+.tabs { display: flex; gap: 4px; background: var(--ground); padding: 3px; border-radius: 7px; border: 1px solid var(--rule); }
+.tab {
+  flex: 1; padding: 7px 10px; border: 0; border-radius: 5px; cursor: pointer;
+  background: transparent; color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 550;
+}
+.tab.on { background: var(--surface-2); color: var(--ink); }
+.tab:focus-visible, .btn:focus-visible, .field input:focus-visible, .linkish:focus-visible {
+  outline: 2px solid var(--sea); outline-offset: 2px;
+}
+
+.field { display: flex; align-items: center; gap: 8px; background: var(--ground); border: 1px solid var(--rule); border-radius: 7px; padding: 4px 6px 4px 12px; }
+.field input {
+  flex: 1; min-width: 0; background: transparent; border: 0; color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums;
+  font-size: 17px; padding: 8px 0;
+}
+.field input::placeholder { color: var(--muted); }
+.field .suffix { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.btn {
+  border-radius: 6px; cursor: pointer; font: inherit; font-weight: 600; font-size: 13.5px;
+  padding: 10px 14px; border: 1px solid transparent; transition: background 120ms, opacity 120ms;
+}
+.btn.primary { background: var(--sea); color: #06231f; }
+.btn.primary:hover:not(:disabled) { background: #4ccbb9; }
+.btn.ghost { background: var(--surface-2); color: var(--ink-2); border-color: var(--rule); padding: 7px 11px; font-size: 12px; }
+.btn.ghost:hover:not(:disabled) { color: var(--ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.linkish { background: none; border: 0; color: var(--muted); font: inherit; font-size: 10.5px; letter-spacing: 0.06em; cursor: pointer; text-transform: none; }
+.linkish:hover { color: var(--sea); }
+
+.hint { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.hint.warn { color: var(--warn); }
+.fine { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+/* headline + panel side by side once there is room */
+.headgrid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 26px; }
+@media (min-width: 900px) { .headgrid { grid-template-columns: 1.45fr 1fr; align-items: start; } }
+.headgrid .headline { margin-top: 0; height: 100%; }
+
+.srcline { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
