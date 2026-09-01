@@ -32,6 +32,10 @@ export const vaultAbi = parseAbi([
   "function paused() view returns (bool)",
   "function operator() view returns (address)",
   "function poolAllowed(address) view returns (bool)",
+  // depositor writes
+  "function deposit(uint256 amount) returns (uint256 sharesOut)",
+  "function withdraw(uint256 shares) returns (uint256 amountOut)",
+  "function balanceOf(address) view returns (uint256)",
   // operator writes
   "function mintSet(address pool, uint256 amount)",
   "function burnSet(address pool, uint256 amount)",
@@ -39,7 +43,7 @@ export const vaultAbi = parseAbi([
   "function cancelOrder(address pool, uint128 orderId)",
   "function cancelOrders(address pool, uint128[] orderIds)",
   // owner writes
-  "function allowPool(address pool, uint256 yesId, uint256 noId)",
+  "function allowPool(address pool)",
   "function setOperator(address operator)",
   "function setPaused(bool p)",
 ]);

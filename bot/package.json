@@ -9,7 +9,8 @@
     "quote": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "shadow": "tsx src/shadow.ts"
+    "shadow": "tsx src/shadow.ts",
+    "setup": "tsx src/setup.ts"
   },
   "dependencies": {
     "@somnia-chain/markets-sdk": "0.28.1",
