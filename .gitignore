@@ -27,3 +27,7 @@ lcov.info
 
 # foundry deps (installed via forge install)
 lib/
+
+# next
+.next/
+next-env.d.ts
