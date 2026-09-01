@@ -8,7 +8,8 @@
     "doctor": "tsx src/doctor.ts",
     "quote": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "shadow": "tsx src/shadow.ts"
   },
   "dependencies": {
     "@somnia-chain/markets-sdk": "0.28.1",
