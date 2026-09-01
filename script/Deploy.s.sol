@@ -6,6 +6,7 @@ import {console2} from "forge-std/console2.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {BallastVault} from "../src/BallastVault.sol";
 import {IOutcomeToken} from "../src/interfaces/IOutcomeToken.sol";
+import {IBinarySettlement} from "../src/interfaces/IBinarySettlement.sol";
 
 /**
  * Deploy BallastVault.
@@ -21,6 +22,9 @@ contract Deploy is Script {
     // ── Somnia testnet (chainId 50312) ──
     address constant TESTNET_COLLATERAL = 0x70a86D8842FB63C4Ad2b7cdddF530eBf1BB25d8E; // tUSDC, 6dp
     address constant TESTNET_OUTCOME_TOKEN = 0xB52c5934113Af5c0Bb20eb3C72290C8215f755b9;
+
+    /// CREATE3 — identical on both networks.
+    address constant BINARY_SETTLEMENT = 0xbF4a49e0Dfd092e5FBE8E5761064C49533e6Ed23;
 
     // ── Somnia mainnet (chainId 5031) ──
     address constant MAINNET_COLLATERAL = 0x00000022dA000002656c64D9eA6011ea952D008A; // USDso, 18dp
@@ -50,9 +54,12 @@ contract Deploy is Script {
         // produces a vault that silently reports a zero position forever.
         require(collateral.code.length > 0, "collateral has no code");
         require(outcomeToken.code.length > 0, "outcomeToken has no code");
+        require(BINARY_SETTLEMENT.code.length > 0, "settlement has no code");
 
         vm.startBroadcast();
-        vault = new BallastVault(ERC20(collateral), IOutcomeToken(outcomeToken), cap);
+        vault = new BallastVault(
+            ERC20(collateral), IOutcomeToken(outcomeToken), IBinarySettlement(BINARY_SETTLEMENT), cap
+        );
         vault.setOperator(msg.sender);
         vm.stopBroadcast();
 

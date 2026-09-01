@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IOutcomeToken} from "../../src/interfaces/IOutcomeToken.sol";
 import {IBinaryPool} from "../../src/interfaces/IBinaryPool.sol";
+import {IBinarySettlement} from "../../src/interfaces/IBinarySettlement.sol";
 
 /// @notice Collateral stand-in. Decimals are constructor-set so tests can run
 ///         the same assertions at 6dp (testnet tUSDC) and 18dp (mainnet USDso).
@@ -161,5 +162,41 @@ contract MockBinaryPool {
 
     function orderCount() external view returns (uint256) {
         return orders.length;
+    }
+}
+
+/**
+ * @notice Settlement stand-in. A winning outcome redeems 1:1 (the live venue's
+ *         settlement fee is currently zero); a losing one pays nothing.
+ */
+contract MockSettlement is IBinarySettlement {
+    MockCollateral public immutable collateral;
+    MockOutcomeToken public immutable outcome;
+    mapping(uint256 => bool) public winner;
+
+    constructor(MockCollateral _c, MockOutcomeToken _o) {
+        collateral = _c;
+        outcome = _o;
+    }
+
+    function setWinner(uint256 outcomeId, bool won) external {
+        winner[outcomeId] = won;
+    }
+
+    function redeem(uint256 outcomeId, uint256 amount, address to) public returns (uint256 collateralOut) {
+        outcome.burnFrom(msg.sender, outcomeId, amount);
+        collateralOut = winner[outcomeId] ? amount : 0;
+        if (collateralOut > 0) collateral.transfer(to, collateralOut);
+    }
+
+    function finalizeAndRedeem(address, uint256 outcomeId, uint256 amount, address to)
+        external
+        returns (uint256)
+    {
+        return redeem(outcomeId, amount, to);
+    }
+
+    function seed(uint256 amount) external {
+        collateral.mint(address(this), amount);
     }
 }

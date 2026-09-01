@@ -6,6 +6,7 @@ import {SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {ReentrancyGuard} from "solmate/utils/ReentrancyGuard.sol";
 import {IBinaryPool} from "./interfaces/IBinaryPool.sol";
 import {IOutcomeToken} from "./interfaces/IOutcomeToken.sol";
+import {IBinarySettlement} from "./interfaces/IBinarySettlement.sol";
 
 /**
  * @title  BallastVault
@@ -51,6 +52,9 @@ contract BallastVault is ERC20, ReentrancyGuard {
     /// @notice The ERC-6909 singleton every outcome token lives on.
     IOutcomeToken public immutable outcomeToken;
 
+    /// @notice The redemption singleton settled positions are cashed through.
+    IBinarySettlement public immutable settlement;
+
     /// @dev Scales collateral units up to the 18dp share basis. 1 on mainnet,
     ///      1e12 on testnet. Shares are always 18dp so the front end never has
     ///      to branch on network — ARCHITECTURE.md §6.3.
@@ -88,6 +92,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
     event PoolRevoked(address indexed pool);
     event ImbalanceCapSet(uint256 cap);
     event PausedSet(bool paused);
+    event Redeemed(uint256 indexed outcomeId, uint256 amount, uint256 collateralOut);
 
     /* ───────────────────────────────── errors ──────────────────────────────── */
 
@@ -127,11 +132,15 @@ contract BallastVault is ERC20, ReentrancyGuard {
 
     /* ──────────────────────────────── ctor ─────────────────────────────────── */
 
-    constructor(ERC20 _collateral, IOutcomeToken _outcomeToken, uint256 _imbalanceCap)
-        ERC20("Ballast Vault Share", "BALLAST", 18)
-    {
+    constructor(
+        ERC20 _collateral,
+        IOutcomeToken _outcomeToken,
+        IBinarySettlement _settlement,
+        uint256 _imbalanceCap
+    ) ERC20("Ballast Vault Share", "BALLAST", 18) {
         collateral = _collateral;
         outcomeToken = _outcomeToken;
+        settlement = _settlement;
         owner = msg.sender;
         imbalanceCap = _imbalanceCap;
 
@@ -344,6 +353,39 @@ contract BallastVault is ERC20, ReentrancyGuard {
     function cancelOrders(address pool, uint128[] calldata orderIds) external onlyOperator {
         if (!poolAllowed[pool]) revert PoolNotAllowed();
         IBinaryPool(pool).cancelOrders(orderIds);
+    }
+
+    /* ─────────────────────────────── settlement ───────────────────────────────── */
+
+    /**
+     * @notice Cash a settled position back into collateral.
+     *
+     * @dev Winnings are claimed, not received. A settled position sits there
+     *      until someone asks for it, and it is invisible to `legTotals` the
+     *      moment its pool rebinds to the next window — so an unredeemed
+     *      position is value the vault holds but does not count. Without this
+     *      the vault could trade indefinitely and watch its NAV drift down.
+     *
+     *      Anyone may call it. There is no discretion here: it burns a settled
+     *      outcome the vault already owns and sends the proceeds to the vault.
+     *      Leaving it permissionless means a stuck operator cannot strand
+     *      depositors' money.
+     */
+    function redeem(uint256 outcomeId, uint256 amount) external nonReentrant returns (uint256 collateralOut) {
+        if (amount == 0) revert ZeroAmount();
+        collateralOut = settlement.redeem(outcomeId, amount, address(this));
+        emit Redeemed(outcomeId, amount, collateralOut);
+    }
+
+    /// @notice As `redeem`, for a market nobody has finalized yet.
+    function finalizeAndRedeem(address pool, uint256 outcomeId, uint256 amount)
+        external
+        nonReentrant
+        returns (uint256 collateralOut)
+    {
+        if (amount == 0) revert ZeroAmount();
+        collateralOut = settlement.finalizeAndRedeem(pool, outcomeId, amount, address(this));
+        emit Redeemed(outcomeId, amount, collateralOut);
     }
 
     /* ──────────────────────────────── owner ────────────────────────────────── */

@@ -5,7 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {BallastVault} from "../src/BallastVault.sol";
 import {IOutcomeToken} from "../src/interfaces/IOutcomeToken.sol";
-import {MockCollateral, MockOutcomeToken, MockBinaryPool} from "./mocks/Mocks.sol";
+import {MockCollateral, MockOutcomeToken, MockBinaryPool, MockSettlement} from "./mocks/Mocks.sol";
+import {IBinarySettlement} from "../src/interfaces/IBinarySettlement.sol";
 
 /**
  * Every test here maps to a numbered invariant in ARCHITECTURE.md §13.
@@ -17,6 +18,7 @@ abstract contract VaultTestBase is Test {
     MockCollateral internal usd;
     MockOutcomeToken internal outcome;
     MockBinaryPool internal pool;
+    MockSettlement internal settlement;
     BallastVault internal vault;
 
     address internal owner = address(this);
@@ -37,14 +39,21 @@ abstract contract VaultTestBase is Test {
         usd = new MockCollateral(d);
         outcome = new MockOutcomeToken();
         pool = new MockBinaryPool(usd, outcome, YES_ID, NO_ID);
+        settlement = new MockSettlement(usd, outcome);
 
-        vault = new BallastVault(ERC20(address(usd)), IOutcomeToken(address(outcome)), 100 * one);
+        vault = new BallastVault(
+            ERC20(address(usd)),
+            IOutcomeToken(address(outcome)),
+            IBinarySettlement(address(settlement)),
+            100 * one
+        );
         vault.setOperator(operator);
         vault.allowPool(address(pool));
 
         usd.mint(alice, 1_000_000 * one);
         usd.mint(bob, 1_000_000 * one);
         pool.seed(1_000_000 * one);
+        settlement.seed(1_000_000 * one);
 
         vm.prank(alice);
         usd.approve(address(vault), type(uint256).max);
@@ -233,6 +242,44 @@ abstract contract VaultTestBase is Test {
         assertEq(vault.nav(), idle, "residual NO is marked at zero");
         assertLe(vault.nav(), idle + matched + vault.imbalance(), "upper bound holds");
         assertGe(vault.nav(), idle + matched, "lower bound holds");
+    }
+
+    /**
+     * Winnings are claimed, not received. A settled position sits there until
+     * someone asks for it — and once its pool rebinds to the next window it is
+     * invisible to legTotals, so an unredeemed position is value the vault
+     * holds but does not count. Redemption is permissionless for exactly that
+     * reason: a stuck operator must not be able to strand depositors' money.
+     */
+    function test_redeem_bringsSettledValueBackIntoNav() public {
+        _deposit(alice, 1_000 * one);
+
+        vm.prank(operator);
+        vault.mintSet(address(pool), 20 * one);
+
+        // The window resolves YES.
+        settlement.setWinner(YES_ID, true);
+        settlement.setWinner(NO_ID, false);
+
+        uint256 navBefore = vault.nav();
+
+        // Anyone can cash it — here, a passer-by.
+        vm.prank(bob);
+        uint256 out = vault.redeem(YES_ID, 20 * one);
+        assertEq(out, 20 * one, "winner redeems 1:1 at a zero settlement fee");
+
+        vm.prank(bob);
+        vault.redeem(NO_ID, 20 * one);
+
+        assertEq(vault.nav(), navBefore, "value returns to the vault, not the caller");
+        assertEq(usd.balanceOf(bob), 1_000_000 * one, "the caller gains nothing");
+        (uint256 yes, uint256 no) = vault.legTotals();
+        assertEq(yes + no, 0, "position is closed");
+    }
+
+    function test_redeem_zeroReverts() public {
+        vm.expectRevert(BallastVault.ZeroAmount.selector);
+        vault.redeem(YES_ID, 0);
     }
 
     /* ────────────────── invariant 4 — share price monotonic ────────────────── */
