@@ -37,6 +37,8 @@ export interface PassStats {
   cancelled: number;
   /** Settled positions redeemed back into collateral. */
   redeemed: number;
+  /** Raw units of complete sets minted this pass. */
+  minted: bigint;
   errors: string[];
 }
 
@@ -92,6 +94,7 @@ export async function runPass(
     unlistedPools: 0,
     cancelled: 0,
     redeemed: 0,
+    minted: 0n,
     errors: [],
   };
 
@@ -144,7 +147,7 @@ export async function runPass(
   return stats;
 }
 
-async function quoteOne(
+export async function quoteOne(
   ctx: EcContext,
   vault: Vault,
   cfg: LoopConfig,
@@ -187,18 +190,6 @@ async function quoteOne(
     return;
   }
 
-  // The ask escrows real YES tokens — there is no naked short. Mint only the
-  // shortfall; a complete set moves both legs together so this never changes
-  // the imbalance.
-  const held = await ctx.exchange.client.getOutcomeBalance({
-    outcomeToken: oc.outcomeToken,
-    account: vault.address,
-    id: oc.yesId,
-  });
-  if (held < sizeRaw) {
-    await vault.mintSet(pool, sizeRaw - held);
-  }
-
   // Clear last pass's quotes before posting new ones. Without this the vault
   // ends up with several generations resting at once - order expiry is three
   // refresh intervals - each one escrowing collateral or outcome tokens it can
@@ -207,6 +198,25 @@ async function quoteOne(
   if (stale.length) {
     await vault.cancelOrders(pool, stale);
     stats.cancelled += stale.length;
+  }
+
+  // Only now read inventory. Escrow LEAVES the wallet while an order rests and
+  // comes back on cancel, so reading before the cancel above would have missed
+  // the YES held behind last pass's ask — and minted a whole fresh set to
+  // replace tokens the vault already owned. That compounds: one extra set per
+  // market per pass, each locking collateral that never comes back while the
+  // quoter runs.
+  const held = await ctx.exchange.client.getOutcomeBalance({
+    outcomeToken: oc.outcomeToken,
+    account: vault.address,
+    id: oc.yesId,
+  });
+
+  // Mint only the shortfall. A complete set moves both legs together, so
+  // topping up never shifts the imbalance.
+  if (held < sizeRaw) {
+    await vault.mintSet(pool, sizeRaw - held);
+    stats.minted += sizeRaw - held;
   }
 
   // Expiry is mandatory and capped at the market's own. Set it just past the
