@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "verify:fork": "node scripts/verify-fork.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.11",
