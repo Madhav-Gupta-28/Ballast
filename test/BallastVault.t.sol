@@ -268,13 +268,18 @@ abstract contract VaultTestBase is Test {
         uint256 out = vault.redeem(YES_ID, 20 * one);
         assertEq(out, 20 * one, "winner redeems 1:1 at a zero settlement fee");
 
+        // The losing leg is refused, and that is deliberate. `redeem` is
+        // permissionless, so anything that pays zero has to revert — otherwise
+        // a passer-by could burn LIVE inventory, which pays zero for exactly
+        // the same reason. A worthless loser is left where it is; once the pool
+        // rebinds to the next window `legTotals` reads the new ids and it stops
+        // being counted at all.
         vm.prank(bob);
+        vm.expectRevert(BallastVault.NothingToRedeem.selector);
         vault.redeem(NO_ID, 20 * one);
 
         assertEq(vault.nav(), navBefore, "value returns to the vault, not the caller");
         assertEq(usd.balanceOf(bob), 1_000_000 * one, "the caller gains nothing");
-        (uint256 yes, uint256 no) = vault.legTotals();
-        assertEq(yes + no, 0, "position is closed");
     }
 
     function test_redeem_zeroReverts() public {

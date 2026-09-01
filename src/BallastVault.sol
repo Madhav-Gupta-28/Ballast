@@ -72,6 +72,17 @@ contract BallastVault is ERC20, ReentrancyGuard {
     address public operator;
     bool public paused;
 
+    /**
+     * @notice Ceiling on the accounting list length.
+     *
+     * @dev Not arbitrary: `legTotals` costs two external calls per pool and sits
+     *      under every deposit, withdrawal and operator action. At 64 pools a
+     *      deposit is a few hundred thousand gas; unbounded, it eventually
+     *      exceeds any sane limit. The venue keeps only a handful of series
+     *      live at once, so this is far above what operation needs.
+     */
+    uint256 public constant MAX_POOLS = 64;
+
     /// @notice Hard bound on |YES - NO| across all tracked positions, raw units.
     uint256 public imbalanceCap;
 
@@ -90,6 +101,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
     event OperatorSet(address indexed operator);
     event PoolAllowed(address indexed pool);
     event PoolRevoked(address indexed pool);
+    event PoolPurged(address indexed pool);
     event ImbalanceCapSet(uint256 cap);
     event PausedSet(bool paused);
     event Redeemed(uint256 indexed outcomeId, uint256 amount, uint256 collateralOut);
@@ -103,6 +115,9 @@ contract BallastVault is ERC20, ReentrancyGuard {
     error ZeroAmount();
     error NothingToRedeem();
     error BadOrderKind();
+    error PoolNotEmpty();
+    error TooManyPools();
+    error ZeroAddress();
     error ImbalanceCapExceeded(uint256 imbalance, uint256 cap);
 
     /* ─────────────────────────────── modifiers ─────────────────────────────── */
@@ -197,7 +212,10 @@ contract BallastVault is ERC20, ReentrancyGuard {
         uint256 n = pools.length;
         for (uint256 i; i < n; ++i) {
             address pool = pools[i];
-            if (!poolAllowed[pool]) continue;
+            // Deliberately NOT gated on `poolAllowed`. Revoking a pool stops
+            // the operator trading it; it does not make the tokens the vault
+            // still holds there disappear. Skipping revoked pools here would
+            // let one owner call erase depositor value from NAV.
             IBinaryPool.BinaryPoolParams memory p = IBinaryPool(pool).getBinaryPoolParams();
             yes += outcomeToken.balanceOf(address(this), p.yesId);
             no += outcomeToken.balanceOf(address(this), p.noId);
@@ -374,6 +392,11 @@ contract BallastVault is ERC20, ReentrancyGuard {
     function redeem(uint256 outcomeId, uint256 amount) external nonReentrant returns (uint256 collateralOut) {
         if (amount == 0) revert ZeroAmount();
         collateralOut = settlement.redeem(outcomeId, amount, address(this));
+        // A redemption that pays nothing is either an unresolved market or a
+        // losing leg. Burning either accomplishes nothing and, since this is
+        // permissionless, would let a passer-by destroy live inventory for
+        // free. Refuse it.
+        if (collateralOut == 0) revert NothingToRedeem();
         emit Redeemed(outcomeId, amount, collateralOut);
     }
 
@@ -385,6 +408,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
     {
         if (amount == 0) revert ZeroAmount();
         collateralOut = settlement.finalizeAndRedeem(pool, outcomeId, amount, address(this));
+        if (collateralOut == 0) revert NothingToRedeem();
         emit Redeemed(outcomeId, amount, collateralOut);
     }
 
@@ -402,6 +426,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
      */
     function allowPool(address pool) external onlyOwner {
         if (!known[pool]) {
+            if (pools.length >= MAX_POOLS) revert TooManyPools();
             pools.push(pool);
             known[pool] = true;
         }
@@ -413,10 +438,46 @@ contract BallastVault is ERC20, ReentrancyGuard {
         emit PoolAllowed(pool);
     }
 
+    /**
+     * @notice Stop the operator trading a pool. Positions already held there
+     *         still count toward NAV — use `purgePool` to drop it entirely.
+     */
     function revokePool(address pool) external onlyOwner {
         poolAllowed[pool] = false;
         outcomeToken.setOperator(pool, false);
         emit PoolRevoked(pool);
+    }
+
+    /**
+     * @notice Remove a pool from the accounting list entirely.
+     *
+     * @dev `legTotals` walks this array and makes two external calls per entry,
+     *      and every deposit, withdrawal and operator action pays for that. The
+     *      venue opens new pools continuously, so without a way to drop dead
+     *      ones the list grows without bound and the vault slowly prices itself
+     *      out of use.
+     *
+     *      Only removable once the vault holds nothing there, so purging can
+     *      never erase live value — the check is the whole safety property.
+     */
+    function purgePool(address pool) external onlyOwner {
+        IBinaryPool.BinaryPoolParams memory p = IBinaryPool(pool).getBinaryPoolParams();
+        if (
+            outcomeToken.balanceOf(address(this), p.yesId) != 0
+                || outcomeToken.balanceOf(address(this), p.noId) != 0
+        ) revert PoolNotEmpty();
+
+        uint256 n = pools.length;
+        for (uint256 i; i < n; ++i) {
+            if (pools[i] != pool) continue;
+            pools[i] = pools[n - 1];
+            pools.pop();
+            break;
+        }
+        poolAllowed[pool] = false;
+        known[pool] = false;
+        outcomeToken.setOperator(pool, false);
+        emit PoolPurged(pool);
     }
 
     function setImbalanceCap(uint256 cap) external onlyOwner {
@@ -429,7 +490,10 @@ contract BallastVault is ERC20, ReentrancyGuard {
         emit PausedSet(p);
     }
 
+    /// @dev Rejects the zero address: handing ownership to nobody would leave
+    ///      the cap, the allowlist and the pause permanently unreachable.
     function transferOwnership(address next) external onlyOwner {
+        if (next == address(0)) revert ZeroAddress();
         owner = next;
     }
 
