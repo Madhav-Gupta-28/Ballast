@@ -24,3 +24,6 @@ lcov.info
 *.swp
 .idea/
 .vscode/
+
+# foundry deps (installed via forge install)
+lib/
