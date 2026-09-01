@@ -26,7 +26,9 @@ lcov.info
 .vscode/
 
 # foundry deps (installed via forge install)
-lib/
+# Anchored to the repo root on purpose: a bare `lib/` also matches web/lib,
+# which silently kept the web app's own source out of the repo.
+/lib/
 
 # next
 .next/
