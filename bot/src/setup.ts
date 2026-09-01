@@ -27,6 +27,22 @@ const arg = (flag: string): string | undefined => {
 };
 const has = (flag: string) => process.argv.includes(flag);
 
+/**
+ * Decimal string -> raw units, exactly.
+ *
+ * Never route this through Number. At 18 decimals `1000.5 * 1e18` is 1.0005e21,
+ * far past the 2^53 where a double stops representing integers exactly, so
+ * `Math.round` there returns a number that is merely close to what the operator
+ * typed. Parse the digits instead.
+ */
+export function parseUnitsExact(value: string, decimals: number): bigint {
+  const t = value.trim();
+  if (!/^\d+(\.\d+)?$/.test(t)) throw new Error(`not a positive decimal amount: "${value}"`);
+  const [whole, frac = ""] = t.split(".");
+  if (frac.length > decimals) throw new Error(`"${value}" has more than ${decimals} decimal places`);
+  return BigInt(whole + frac.padEnd(decimals, "0"));
+}
+
 async function main() {
   const ctx = createExchange({ withSigner: true });
   const { config } = ctx;
@@ -65,7 +81,7 @@ async function main() {
   console.log(`  wallet   ${human(bal, config.decimals)} collateral`);
 
   if (depositHuman) {
-    const amount = BigInt(Math.round(Number(depositHuman) * 10 ** config.decimals));
+    const amount = parseUnitsExact(depositHuman, config.decimals);
     if (amount > bal) throw new Error(`deposit ${depositHuman} exceeds wallet balance`);
 
     const allowance = (await pub.readContract({

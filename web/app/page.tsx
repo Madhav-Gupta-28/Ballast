@@ -26,10 +26,16 @@ function GapCell({ m }: { m: MarketView }) {
 
 export default async function Page() {
   const cfg = NETWORK[NET];
-  const [markets, vault] = await Promise.all([
-    getMarkets(NET, HALF_SPREAD, VAULT).catch(() => [] as MarketView[]),
-    VAULT ? getVault(NET, VAULT) : Promise.resolve(null),
-  ]);
+  // An indexer failure and a venue with nothing live look identical if both
+  // collapse to an empty array. They are very different things to show.
+  let markets: MarketView[] = [];
+  let feedError: string | null = null;
+  try {
+    markets = await getMarkets(NET, HALF_SPREAD, VAULT);
+  } catch (e) {
+    feedError = (e as Error).message;
+  }
+  const vault = VAULT ? await getVault(NET, VAULT) : null;
 
   const quotable = markets.filter((m) => m.bookSpread !== undefined && m.ourSpread !== undefined);
   const meanBook = quotable.length ? quotable.reduce((a, m) => a + m.bookSpread!, 0) / quotable.length : 0;
@@ -114,8 +120,10 @@ export default async function Page() {
             <tbody>
               {markets.length === 0 && (
                 <tr>
-                  <td colSpan={7} style={{ color: "var(--muted)" }}>
-                    No live markets on this venue right now.
+                  <td colSpan={7} style={{ color: feedError ? "var(--warn)" : "var(--muted)" }}>
+                    {feedError
+                      ? `Could not read the venue: ${feedError}`
+                      : "No live markets on this venue right now."}
                   </td>
                 </tr>
               )}

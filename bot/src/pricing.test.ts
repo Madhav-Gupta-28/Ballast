@@ -209,3 +209,21 @@ describe("compressionTicks", () => {
     expect(compressionTicks(r, q)).toBeUndefined();
   });
 });
+
+// setup.ts parses operator-typed amounts; at 18dp a float cannot be trusted.
+import { parseUnitsExact } from "./setup.js";
+
+describe("parseUnitsExact", () => {
+  it("is exact where a float is not", () => {
+    // 1000.5 * 1e18 is past 2^53; Math.round would drift here.
+    expect(parseUnitsExact("1000.5", 18)).toBe(1_000_500_000_000_000_000_000n);
+    expect(parseUnitsExact("0.000001", 6)).toBe(1n);
+    expect(parseUnitsExact("1", 18)).toBe(10n ** 18n);
+  });
+
+  it("rejects nonsense instead of silently producing a number", () => {
+    expect(() => parseUnitsExact("-1", 6)).toThrow();
+    expect(() => parseUnitsExact("1e18", 6)).toThrow();
+    expect(() => parseUnitsExact("1.0000001", 6)).toThrow(/decimal places/);
+  });
+});
