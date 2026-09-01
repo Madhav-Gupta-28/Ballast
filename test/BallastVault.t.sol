@@ -180,6 +180,33 @@ abstract contract VaultTestBase is Test {
         assertEq(vault.imbalance(), 0);
     }
 
+    /**
+     * A resting bid escrows collateral, so the vault has to approve the pool
+     * for price*quantity. Both carry the collateral scale, so the product
+     * carries it twice and must be divided back by 10**decimals — not by a
+     * hardcoded 1e18.
+     *
+     * This shipped wrong and reverted on live testnet: at 6dp,
+     * 387000 * 1000000 / 1e18 truncates to ZERO, so no allowance was granted
+     * and the pool could not pull. It passed every test because no test placed
+     * a bid, and the mock did not pull collateral. Both are fixed.
+     */
+    function test_bid_escrowsTheRightAmountOfCollateral() public {
+        _deposit(alice, 1_000 * one);
+        uint256 before = usd.balanceOf(address(vault));
+
+        uint256 price = (387 * one) / 1000; // 0.387
+        uint256 qty = 1 * one; // one share
+
+        vm.prank(operator);
+        vault.placeOrder(address(pool), true, 0, price, qty, 0, 0, 0);
+
+        uint256 escrowed = before - usd.balanceOf(address(vault));
+        assertEq(escrowed, (price * qty) / one, "escrow is price x size, descaled once");
+        assertGt(escrowed, 0, "a bid that escrows nothing is the 1e18 bug");
+        assertEq(pool.orderCount(), 1, "order rested");
+    }
+
     /* ─────────────────────── invariant 3 — NAV bounds ──────────────────────── */
 
     function test_nav_marksResidualAtZero_soItIsALowerBound() public {

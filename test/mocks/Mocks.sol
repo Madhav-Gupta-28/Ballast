@@ -118,6 +118,14 @@ contract MockBinaryPool {
         address,
         uint96
     ) external returns (uint256 orderId) {
+        // Faithful to the venue: a resting bid escrows collateral up front, so
+        // the pool pulls it here. Without this the mock happily accepts an
+        // order the real pool would reject for want of an allowance.
+        if (isBid) {
+            uint256 need = (price * quantity) / (10 ** collateral.decimals());
+            require(need > 0, "bid escrow rounds to zero");
+            collateral.transferFrom(msg.sender, address(this), need);
+        }
         orders.push(Order({maker: msg.sender, isBid: isBid, price: price, quantity: quantity, live: true}));
         return orders.length - 1;
     }

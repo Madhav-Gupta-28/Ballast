@@ -56,6 +56,12 @@ contract BallastVault is ERC20, ReentrancyGuard {
     ///      to branch on network — ARCHITECTURE.md §6.3.
     uint256 public immutable scale;
 
+    /// @dev One whole unit of collateral: 1e18 on mainnet, 1e6 on testnet.
+    ///      Prices and sizes both carry this scale, so a price*size product
+    ///      carries it twice and has to be divided back down by exactly this.
+    ///      Hardcoding 1e18 here silently yields ZERO on the 6dp venue.
+    uint256 public immutable one;
+
     /* ──────────────────────────────── storage ──────────────────────────────── */
 
     address public owner;
@@ -131,6 +137,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
         uint8 d = _collateral.decimals();
         require(d <= 18, "collateral decimals > 18");
         scale = 10 ** (18 - d);
+        one = 10 ** d;
 
         emit ImbalanceCapSet(_imbalanceCap);
     }
@@ -282,9 +289,11 @@ contract BallastVault is ERC20, ReentrancyGuard {
         uint256 worstCase = imbalance() + quantity;
         if (worstCase > imbalanceCap) revert ImbalanceCapExceeded(worstCase, imbalanceCap);
 
-        // Buying a leg escrows collateral; the pool pulls it.
+        // Buying a leg escrows collateral; the pool pulls it. Both `price` and
+        // `quantity` are scaled by 10**decimals, so their product is scaled
+        // twice and must come back down by `one` — not by a literal 1e18.
         if (isBid) {
-            uint256 need = (price * quantity) / 1e18;
+            uint256 need = (price * quantity) / one;
             collateral.safeApprove(pool, 0);
             collateral.safeApprove(pool, need);
         }
