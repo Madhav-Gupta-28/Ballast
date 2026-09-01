@@ -40,18 +40,26 @@ interface IBinaryPool {
     /// @notice Burn `amount` of each leg held by the caller, refund `amount` collateral.
     function burnSet(uint256 amount) external;
 
-    /// @dev `payable` upstream because native-base sells can carry value; binary
-    ///      markets are ERC-20 collateralised, so Ballast never sends value.
-    function placeOrder(
-        bool isBid,
-        uint64 userData,
+    /**
+     * @notice Place an order on a binary market.
+     * @param kind 0 BUY_YES · 1 SELL_YES · 2 BUY_NO · 3 SELL_NO
+     *
+     * @dev The generic `placeOrder(bool isBid, ...)` reverts on a binary pool
+     *      with `UseBinaryPlacement()`. A binary book has four sides, not two:
+     *      buying NO is a distinct action from selling YES even though they
+     *      price as complements, and settlement-extraction v2 takes the kind
+     *      explicitly rather than inferring it from `userData`.
+     */
+    function placeBinaryOrder(
+        uint8 kind,
         uint256 price,
         uint256 quantity,
         uint64 expireTimestampNs,
         uint8 orderType,
         uint8 selfMatchingOption,
         address builder,
-        uint96 builderFeeBpsTimes1k
+        uint96 builderFeeBpsTimes1k,
+        uint64 userData
     ) external returns (uint256 orderId);
 
     function cancelOrder(uint128 orderId) external;

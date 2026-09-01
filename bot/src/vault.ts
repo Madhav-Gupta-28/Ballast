@@ -39,7 +39,7 @@ export const vaultAbi = parseAbi([
   // operator writes
   "function mintSet(address pool, uint256 amount)",
   "function burnSet(address pool, uint256 amount)",
-  "function placeOrder(address pool, bool isBid, uint64 userData, uint256 price, uint256 quantity, uint64 expireTimestampNs, uint8 orderType, uint8 selfMatchingOption) returns (uint256 orderId)",
+  "function placeBinaryOrder(address pool, uint8 kind, uint256 price, uint256 quantity, uint64 expireTimestampNs, uint8 orderType, uint8 selfMatchingOption) returns (uint256 orderId)",
   "function cancelOrder(address pool, uint128 orderId)",
   "function cancelOrders(address pool, uint128[] orderIds)",
   // owner writes
@@ -47,6 +47,16 @@ export const vaultAbi = parseAbi([
   "function setOperator(address operator)",
   "function setPaused(bool p)",
 ]);
+
+/** The on-chain `OrderKind` enum. A binary book has four sides. */
+export const OrderKind = { BUY_YES: 0, SELL_YES: 1, BUY_NO: 2, SELL_NO: 3 } as const;
+export type OrderKind = (typeof OrderKind)[keyof typeof OrderKind];
+export const KIND_NAME: Record<number, string> = {
+  0: "BUY_YES",
+  1: "SELL_YES",
+  2: "BUY_NO",
+  3: "SELL_NO",
+};
 
 export interface VaultState {
   nav: bigint;
@@ -182,24 +192,28 @@ export class Vault {
   }
 
   /**
+   * @param kind      0 BUY_YES · 1 SELL_YES · 2 BUY_NO · 3 SELL_NO
    * @param price     raw units, already a whole multiple of the tick
    * @param quantity  raw units, already a whole multiple of the lot
    * @param expireNs  nanoseconds; mandatory, and capped at the market's expiry
+   *
+   * A binary book has four sides, not two. The generic `placeOrder(bool isBid)`
+   * reverts on these pools with `UseBinaryPlacement()`.
    */
-  placeOrder(args: {
+  placeBinaryOrder(args: {
     pool: Address;
-    isBid: boolean;
+    kind: OrderKind;
     price: bigint;
     quantity: bigint;
     expireNs: bigint;
     orderType?: number;
     selfMatching?: number;
   }) {
-    const { pool, isBid, price, quantity, expireNs, orderType = 0, selfMatching = 0 } = args;
+    const { pool, kind, price, quantity, expireNs, orderType = 0, selfMatching = 0 } = args;
     return this.send(
-      "placeOrder",
-      [pool, isBid, 0n, price, quantity, expireNs, orderType, selfMatching],
-      `placeOrder(${isBid ? "bid" : "ask"} ${quantity} @ ${price})`,
+      "placeBinaryOrder",
+      [pool, kind, price, quantity, expireNs, orderType, selfMatching],
+      `${KIND_NAME[kind]} ${quantity} @ ${price}`,
     );
   }
 

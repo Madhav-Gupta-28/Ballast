@@ -107,26 +107,34 @@ contract MockBinaryPool {
         collateral.transfer(msg.sender, amount);
     }
 
-    function placeOrder(
-        bool isBid,
-        uint64,
+    /**
+     * Faithful to the venue: kinds are 0 BUY_YES, 1 SELL_YES, 2 BUY_NO,
+     * 3 SELL_NO. A buy escrows collateral (the pool pulls it), a sell escrows
+     * outcome tokens. The generic placeOrder does not exist on a binary pool —
+     * it reverts there with UseBinaryPlacement().
+     */
+    function placeBinaryOrder(
+        uint8 kind,
         uint256 price,
         uint256 quantity,
         uint64,
         uint8,
         uint8,
         address,
-        uint96
+        uint96,
+        uint64
     ) external returns (uint256 orderId) {
-        // Faithful to the venue: a resting bid escrows collateral up front, so
-        // the pool pulls it here. Without this the mock happily accepts an
-        // order the real pool would reject for want of an allowance.
-        if (isBid) {
+        require(kind <= 3, "bad kind");
+        bool isBuy = kind == 0 || kind == 2;
+        if (isBuy) {
             uint256 need = (price * quantity) / (10 ** collateral.decimals());
-            require(need > 0, "bid escrow rounds to zero");
+            require(need > 0, "buy escrow rounds to zero");
             collateral.transferFrom(msg.sender, address(this), need);
+        } else {
+            uint256 id = kind == 1 ? yesId : noId;
+            outcome.burnFrom(msg.sender, id, quantity);
         }
-        orders.push(Order({maker: msg.sender, isBid: isBid, price: price, quantity: quantity, live: true}));
+        orders.push(Order({maker: msg.sender, isBid: isBuy, price: price, quantity: quantity, live: true}));
         return orders.length - 1;
     }
 

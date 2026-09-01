@@ -12,7 +12,7 @@ import type { EcContext } from "./ec/exchange.js";
 import { activeMarkets, marketOnchain, outcomeSymbols, isTradable } from "./ec/markets.js";
 import { maybeClaim } from "./ec/claim.js";
 import { reference, deriveQuotes, compressionTicks, fromTicks, type Book, type TickGrid } from "./pricing.js";
-import { Vault, human } from "./vault.js";
+import { Vault, human, OrderKind } from "./vault.js";
 
 export interface LoopConfig {
   halfSpread: number;
@@ -31,6 +31,8 @@ export interface PassStats {
   compressionTicks: bigint;
   /** Book spread before Ballast, in ticks, summed across quoted markets. */
   bookSpreadTicks: bigint;
+  /** Live markets whose pool the owner has not allowlisted yet. */
+  unlistedPools: number;
   errors: string[];
 }
 
@@ -58,13 +60,33 @@ export async function runPass(
     skipped: 0,
     compressionTicks: 0n,
     bookSpreadTicks: 0n,
+    unlistedPools: 0,
     errors: [],
   };
 
-  const markets = await activeMarkets(ctx, { max: cfg.maxMarkets });
-  stats.markets = markets.length;
+  // Fetch wide, then keep only what the vault is allowed to trade. The venue
+  // spawns a new pool every few minutes, so the newest markets are routinely
+  // ones the owner has not allowlisted yet. Quoting what we can beats erroring
+  // on what we cannot — run `pnpm setup --allow` to pick the new ones up.
+  const all = await activeMarkets(ctx, { max: 40 });
+  const allowed: UnifiedMarket[] = [];
+  let unlisted = 0;
 
-  for (const market of markets) {
+  for (const m of all) {
+    if (allowed.length >= cfg.maxMarkets) break;
+    const oc = await marketOnchain(ctx, m);
+    if (!oc || !isTradable(oc)) continue;
+    if (await vault.poolAllowed(oc.pool as Address)) {
+      allowed.push(m);
+    } else {
+      unlisted++;
+    }
+  }
+
+  stats.markets = allowed.length;
+  stats.unlistedPools = unlisted;
+
+  for (const market of allowed) {
     try {
       await quoteOne(ctx, vault, cfg, grid, market, stats);
     } catch (e) {
@@ -107,11 +129,6 @@ async function quoteOne(
   }
 
   const pool = oc.pool as Address;
-  if (!(await vault.poolAllowed(pool))) {
-    stats.skipped++;
-    stats.errors.push(`${market.symbol}: pool ${pool} not allowlisted on the vault`);
-    return;
-  }
 
   const { yes } = outcomeSymbols(market);
   const raw = await ctx.exchange.fetchOrderBook(yes, 10);
@@ -162,8 +179,11 @@ async function quoteOne(
   const bidPriceRaw = quotes.bidTicks * grid.tick;
   const askPriceRaw = quotes.askTicks * grid.tick;
 
-  await vault.placeOrder({ pool, isBid: true, price: bidPriceRaw, quantity: sizeRaw, expireNs });
-  await vault.placeOrder({ pool, isBid: false, price: askPriceRaw, quantity: sizeRaw, expireNs });
+  // Two-sided on the YES book: BUY_YES at the bid, SELL_YES at the ask. By the
+  // complement identity that is the same as standing ready to sell NO at
+  // 1 - bid and buy NO at 1 - ask, so both kinds of taker find a counterparty.
+  await vault.placeBinaryOrder({ pool, kind: OrderKind.BUY_YES, price: bidPriceRaw, quantity: sizeRaw, expireNs });
+  await vault.placeBinaryOrder({ pool, kind: OrderKind.SELL_YES, price: askPriceRaw, quantity: sizeRaw, expireNs });
 
   stats.quoted++;
   const saved = compressionTicks(ref, quotes);
@@ -186,6 +206,7 @@ async function quoteOne(
 export function summarise(stats: PassStats, grid: TickGrid): string {
   const parts = [`${stats.quoted}/${stats.markets} quoted`];
   if (stats.skipped) parts.push(`${stats.skipped} skipped`);
+  if (stats.unlistedPools) parts.push(`${stats.unlistedPools} on new pools (run setup --allow)`);
   if (stats.bookSpreadTicks > 0n) {
     const before = fromTicks(stats.bookSpreadTicks, grid);
     const saved = fromTicks(stats.compressionTicks, grid);

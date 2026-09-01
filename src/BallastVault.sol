@@ -97,6 +97,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
     error PoolNotAllowed();
     error ZeroAmount();
     error NothingToRedeem();
+    error BadOrderKind();
     error ImbalanceCapExceeded(uint256 imbalance, uint256 cap);
 
     /* ─────────────────────────────── modifiers ─────────────────────────────── */
@@ -194,7 +195,19 @@ contract BallastVault is ERC20, ReentrancyGuard {
         }
     }
 
-    /// @notice |YES - NO| across all pools. The only number that carries risk.
+    /**
+     * @notice |YES - NO| across all pools. The only number that carries risk.
+     *
+     * @dev Reads WALLET balances, so outcome tokens sitting in escrow behind a
+     *      resting sell order are not counted. A vault that is economically
+     *      flat but has one leg escrowed therefore reports a small imbalance
+     *      it does not really have.
+     *
+     *      That is the safe direction to be wrong in — the cap binds slightly
+     *      early rather than slightly late — so it is left as is. Netting
+     *      escrow back in would mean tracking every open order on-chain, which
+     *      is a much larger surface for a much smaller gain.
+     */
     function imbalance() public view returns (uint256) {
         (uint256 yes, uint256 no) = legTotals();
         return yes > no ? yes - no : no - yes;
@@ -263,16 +276,25 @@ contract BallastVault is ERC20, ReentrancyGuard {
         IBinaryPool(pool).burnSet(amount);
     }
 
+    /// @notice 0 BUY_YES · 1 SELL_YES · 2 BUY_NO · 3 SELL_NO.
+    uint8 internal constant BUY_YES = 0;
+    uint8 internal constant BUY_NO = 2;
+
     /**
      * @notice Place a limit order on an allowlisted pool.
-     * @dev Price and quantity are raw, already snapped to the venue's tick and
-     *      lot grids off-chain. Passing an unsnapped price reverts inside the
-     *      pool with InvalidPrice — ARCHITECTURE.md §6.1.
+     *
+     * @param kind 0 BUY_YES · 1 SELL_YES · 2 BUY_NO · 3 SELL_NO
+     * @param price     raw units, already a whole multiple of the venue's tick
+     * @param quantity  raw units, already a whole multiple of the venue's lot
+     *
+     * @dev A buy escrows collateral, which the pool pulls, so it needs an
+     *      allowance. A sell escrows outcome tokens, already covered by the
+     *      one-time operator approval `allowPool` sets on the ERC-6909
+     *      singleton — there is no naked short, the vault must hold them.
      */
-    function placeOrder(
+    function placeBinaryOrder(
         address pool,
-        bool isBid,
-        uint64 userData,
+        uint8 kind,
         uint256 price,
         uint256 quantity,
         uint64 expireTimestampNs,
@@ -280,37 +302,38 @@ contract BallastVault is ERC20, ReentrancyGuard {
         uint8 selfMatchingOption
     ) external onlyOperator boundedImbalance returns (uint256 orderId) {
         if (!poolAllowed[pool]) revert PoolNotAllowed();
+        if (kind > 3) revert BadOrderKind();
 
         // Forward-looking cap check. An imbalance is created by a FILL, and a
         // fill does not call this contract — a taker lifts a resting order and
         // the vault's legs move without any vault function running. So the only
-        // place the cap can actually bind is here, before the order exists:
-        // refuse any order that could breach the cap if it filled in full.
+        // place the cap can bind is here, before the order exists.
         uint256 worstCase = imbalance() + quantity;
         if (worstCase > imbalanceCap) revert ImbalanceCapExceeded(worstCase, imbalanceCap);
 
-        // Buying a leg escrows collateral; the pool pulls it. Both `price` and
-        // `quantity` are scaled by 10**decimals, so their product is scaled
-        // twice and must come back down by `one` — not by a literal 1e18.
-        if (isBid) {
+        bool isBuy = kind == BUY_YES || kind == BUY_NO;
+        if (isBuy) {
+            // Both operands carry the collateral scale, so the product carries
+            // it twice and comes back down by `one` — never a literal 1e18,
+            // which truncates to zero on the 6dp venue.
             uint256 need = (price * quantity) / one;
             collateral.safeApprove(pool, 0);
             collateral.safeApprove(pool, need);
         }
 
-        orderId = IBinaryPool(pool).placeOrder(
-            isBid,
-            userData,
+        orderId = IBinaryPool(pool).placeBinaryOrder(
+            kind,
             price,
             quantity,
             expireTimestampNs,
             orderType,
             selfMatchingOption,
             address(0), // no builder
-            0 // no builder fee
+            0, // no builder fee
+            0 // userData: opaque, unused
         );
 
-        if (isBid) collateral.safeApprove(pool, 0);
+        if (isBuy) collateral.safeApprove(pool, 0);
     }
 
     function cancelOrder(address pool, uint128 orderId) external onlyOperator {

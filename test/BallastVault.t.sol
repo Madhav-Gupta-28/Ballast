@@ -118,13 +118,18 @@ abstract contract VaultTestBase is Test {
         vm.expectRevert(
             abi.encodeWithSelector(BallastVault.ImbalanceCapExceeded.selector, 101 * one, 100 * one)
         );
-        vault.placeOrder(address(pool), false, 0, 6 * one / 10, 101 * one, 0, 0, 0);
+        vault.placeBinaryOrder(address(pool), 1, 6 * one / 10, 101 * one, 0, 0, 0);
     }
 
     function test_placeOrder_allowsAnOrderThatFitsUnderTheCap() public {
         _deposit(alice, 1_000 * one);
-        vm.prank(operator);
-        vault.placeOrder(address(pool), false, 0, 6 * one / 10, 100 * one, 0, 0, 0);
+        // A SELL_YES escrows real YES tokens — there is no naked short, so the
+        // vault mints a complete set first. Minting moves both legs together,
+        // so it does not shift the imbalance.
+        vm.startPrank(operator);
+        vault.mintSet(address(pool), 100 * one);
+        vault.placeBinaryOrder(address(pool), 1, 6 * one / 10, 100 * one, 0, 0, 0);
+        vm.stopPrank();
         assertEq(pool.orderCount(), 1, "order went through");
     }
 
@@ -139,9 +144,10 @@ abstract contract VaultTestBase is Test {
 
         // 40 more still fits; 41 does not.
         vm.startPrank(operator);
-        vault.placeOrder(address(pool), false, 0, 6 * one / 10, 40 * one, 0, 0, 0);
+        vault.mintSet(address(pool), 41 * one); // inventory for the sell leg
+        vault.placeBinaryOrder(address(pool), 1, 6 * one / 10, 40 * one, 0, 0, 0);
         vm.expectRevert();
-        vault.placeOrder(address(pool), false, 0, 6 * one / 10, 41 * one, 0, 0, 0);
+        vault.placeBinaryOrder(address(pool), 1, 6 * one / 10, 41 * one, 0, 0, 0);
         vm.stopPrank();
     }
 
@@ -191,7 +197,7 @@ abstract contract VaultTestBase is Test {
      * and the pool could not pull. It passed every test because no test placed
      * a bid, and the mock did not pull collateral. Both are fixed.
      */
-    function test_bid_escrowsTheRightAmountOfCollateral() public {
+    function test_buy_escrowsTheRightAmountOfCollateral() public {
         _deposit(alice, 1_000 * one);
         uint256 before = usd.balanceOf(address(vault));
 
@@ -199,7 +205,7 @@ abstract contract VaultTestBase is Test {
         uint256 qty = 1 * one; // one share
 
         vm.prank(operator);
-        vault.placeOrder(address(pool), true, 0, price, qty, 0, 0, 0);
+        vault.placeBinaryOrder(address(pool), 0, price, qty, 0, 0, 0);
 
         uint256 escrowed = before - usd.balanceOf(address(vault));
         assertEq(escrowed, (price * qty) / one, "escrow is price x size, descaled once");
