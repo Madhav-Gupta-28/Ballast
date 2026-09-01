@@ -40,7 +40,7 @@ abstract contract VaultTestBase is Test {
 
         vault = new BallastVault(ERC20(address(usd)), IOutcomeToken(address(outcome)), 100 * one);
         vault.setOperator(operator);
-        vault.allowPool(address(pool), YES_ID, NO_ID);
+        vault.allowPool(address(pool));
 
         usd.mint(alice, 1_000_000 * one);
         usd.mint(bob, 1_000_000 * one);
@@ -145,6 +145,41 @@ abstract contract VaultTestBase is Test {
         vm.stopPrank();
     }
 
+    /**
+     * A pool rebinds its (nonce -> ids) pair on every new window — a live
+     * testnet pool was already on its 98th. If the vault cached ids at
+     * allowlist time it would read zero balances after the first roll, report
+     * an imbalance of zero, and its cap would stop binding precisely when the
+     * position was real. So the ids are read from the pool every time.
+     */
+    function test_survivesAPoolRecycle_withoutGoingBlind() public {
+        _deposit(alice, 1_000 * one);
+
+        vm.prank(operator);
+        vault.mintSet(address(pool), 40 * one);
+        (uint256 yes0, uint256 no0) = vault.legTotals();
+        assertEq(yes0, 40 * one);
+        assertEq(no0, 40 * one);
+
+        // The window rolls: same pool address, brand new outcome ids.
+        pool.recycle();
+
+        // Position in the NEW window starts empty, and the vault says so
+        // rather than reporting the previous window's numbers.
+        (uint256 yes1, uint256 no1) = vault.legTotals();
+        assertEq(yes1, 0, "new window starts flat");
+        assertEq(no1, 0, "new window starts flat");
+
+        // And it can still account for fresh activity on the new ids. A stale
+        // cache would have kept reading the old pair and seen none of this.
+        vm.prank(operator);
+        vault.mintSet(address(pool), 25 * one);
+        (uint256 yes2, uint256 no2) = vault.legTotals();
+        assertEq(yes2, 25 * one, "tracks the new window's ids");
+        assertEq(no2, 25 * one, "tracks the new window's ids");
+        assertEq(vault.imbalance(), 0);
+    }
+
     /* ─────────────────────── invariant 3 — NAV bounds ──────────────────────── */
 
     function test_nav_marksResidualAtZero_soItIsALowerBound() public {
@@ -217,7 +252,7 @@ abstract contract VaultTestBase is Test {
         vault.setOperator(operator);
 
         vm.expectRevert(BallastVault.NotOwner.selector);
-        vault.allowPool(address(0xDEAD), 7, 8);
+        vault.allowPool(address(0xDEAD));
 
         vm.expectRevert(BallastVault.NotOwner.selector);
         vault.setImbalanceCap(type(uint256).max);

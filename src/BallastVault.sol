@@ -68,22 +68,17 @@ contract BallastVault is ERC20, ReentrancyGuard {
     /// @notice Pools the operator is allowed to touch.
     mapping(address => bool) public poolAllowed;
 
-    /// @dev Outcome ids the vault may hold, as (yesId, noId) pairs per pool.
-    struct Legs {
-        uint256 yesId;
-        uint256 noId;
-        bool set;
-    }
-
-    mapping(address => Legs) public legsOf;
+    /// @dev Pools ever allowlisted, for iteration. Outcome ids are NOT stored —
+    ///      see `legTotals`.
     address[] public pools;
+    mapping(address => bool) internal known;
 
     /* ───────────────────────────────── events ──────────────────────────────── */
 
     event Deposit(address indexed who, uint256 amount, uint256 shares);
     event Withdraw(address indexed who, uint256 shares, uint256 amount);
     event OperatorSet(address indexed operator);
-    event PoolAllowed(address indexed pool, uint256 yesId, uint256 noId);
+    event PoolAllowed(address indexed pool);
     event PoolRevoked(address indexed pool);
     event ImbalanceCapSet(uint256 cap);
     event PausedSet(bool paused);
@@ -170,14 +165,25 @@ contract BallastVault is ERC20, ReentrancyGuard {
         return (nav() * scale * 1e18) / supply;
     }
 
-    /// @notice Total YES and NO held across every allowlisted pool, raw units.
+    /**
+     * @notice Total YES and NO held across every allowlisted pool, raw units.
+     *
+     * @dev The outcome ids are read from each pool on every call rather than
+     *      stored. A pool rebinds its (nonce -> ids) pair for each new window —
+     *      one live testnet pool was already on its 98th — so any id captured at
+     *      allowlist time is stale within minutes. A vault reading stale ids
+     *      sees zero balances, reports an imbalance of zero, and its cap stops
+     *      binding exactly when it is needed. Reading live costs one call per
+     *      pool and cannot go wrong.
+     */
     function legTotals() public view returns (uint256 yes, uint256 no) {
         uint256 n = pools.length;
         for (uint256 i; i < n; ++i) {
-            Legs memory l = legsOf[pools[i]];
-            if (!l.set) continue;
-            yes += outcomeToken.balanceOf(address(this), l.yesId);
-            no += outcomeToken.balanceOf(address(this), l.noId);
+            address pool = pools[i];
+            if (!poolAllowed[pool]) continue;
+            IBinaryPool.BinaryPoolParams memory p = IBinaryPool(pool).getBinaryPoolParams();
+            yes += outcomeToken.balanceOf(address(this), p.yesId);
+            no += outcomeToken.balanceOf(address(this), p.noId);
         }
     }
 
@@ -316,20 +322,21 @@ contract BallastVault is ERC20, ReentrancyGuard {
     }
 
     /**
-     * @notice Allow the operator to trade a pool, and record its outcome ids.
-     * @dev The ids are what `legTotals` reads. A pool with the wrong ids would
-     *      make the vault blind to its own position, so they are set by the
-     *      owner alongside the allowlist rather than supplied per call.
+     * @notice Allow the operator to trade a pool.
+     * @dev No ids are taken: `legTotals` reads them from the pool each time, so
+     *      the vault cannot be pointed at the wrong leg by mistake or on purpose.
      */
-    function allowPool(address pool, uint256 yesId, uint256 noId) external onlyOwner {
-        if (!legsOf[pool].set) pools.push(pool);
-        legsOf[pool] = Legs({yesId: yesId, noId: noId, set: true});
+    function allowPool(address pool) external onlyOwner {
+        if (!known[pool]) {
+            pools.push(pool);
+            known[pool] = true;
+        }
         poolAllowed[pool] = true;
 
         // Both legs are covered by one operator approval on the singleton.
         outcomeToken.setOperator(pool, true);
 
-        emit PoolAllowed(pool, yesId, noId);
+        emit PoolAllowed(pool);
     }
 
     function revokePool(address pool) external onlyOwner {

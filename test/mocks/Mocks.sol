@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IOutcomeToken} from "../../src/interfaces/IOutcomeToken.sol";
+import {IBinaryPool} from "../../src/interfaces/IBinaryPool.sol";
 
 /// @notice Collateral stand-in. Decimals are constructor-set so tests can run
 ///         the same assertions at 6dp (testnet tUSDC) and 18dp (mainnet USDso).
@@ -52,8 +53,9 @@ contract MockOutcomeToken is IOutcomeToken {
 contract MockBinaryPool {
     MockCollateral public immutable collateral;
     MockOutcomeToken public immutable outcome;
-    uint256 public immutable yesId;
-    uint256 public immutable noId;
+    /// @dev Mutable, like the real thing: a pool rebinds these each window.
+    uint256 public yesId;
+    uint256 public noId;
 
     struct Order {
         address maker;
@@ -70,6 +72,27 @@ contract MockBinaryPool {
         outcome = _o;
         yesId = _yesId;
         noId = _noId;
+    }
+
+    /// @dev Mirrors the live pool: ids are served from here, never cached by
+    ///      callers. `nonce` moves so a test can simulate a window recycle.
+    uint64 public nonce = 1;
+
+    function getBinaryPoolParams() external view returns (IBinaryPool.BinaryPoolParams memory p) {
+        p.collateralToken = address(collateral);
+        p.outcomeToken = address(outcome);
+        p.yesId = yesId;
+        p.noId = noId;
+        p.oneCollateral = 10 ** collateral.decimals();
+        p.marketNonce = nonce;
+    }
+
+    /// @notice Roll the pool onto a new window, exactly as v2 does: bump the
+    ///         nonce and rebind to a fresh pair of outcome ids.
+    function recycle() external {
+        nonce += 1;
+        yesId += 2;
+        noId += 2;
     }
 
     function mintSet(address yesTo, address noTo, uint256 amount) external {
