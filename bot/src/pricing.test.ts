@@ -164,6 +164,36 @@ describe.each(GRIDS)("deriveQuotes — %s", (_name, g) => {
   });
 });
 
+describe.each(GRIDS)("degenerate books — %s", (_name, g) => {
+  it("refuses to quote into a crossed book", () => {
+    // Bid above ask. Stale or inconsistent data, not a market. Quoting here
+    // would cross the resting side rather than rest inside it.
+    const r = reference(book([[0.6, 10]], [[0.4, 10]]), g);
+    expect(r.source).toBe("crossed");
+    expect(deriveQuotes(r, 0.005, g)).toBeNull();
+  });
+
+  it("refuses to quote into a locked book", () => {
+    const r = reference(book([[0.5, 10]], [[0.5, 10]]), g);
+    expect(r.source).toBe("crossed");
+    expect(deriveQuotes(r, 0.005, g)).toBeNull();
+  });
+
+  it("ignores levels with nothing left on them", () => {
+    // A zero-size level is not liquidity; anchoring on it would centre the
+    // quote on a price nobody is offering.
+    const r = reference(book([[0.9, 0], [0.4, 10]], [[0.1, 0], [0.6, 10]]), g);
+    expect(r.source).toBe("mid");
+    expect(r.bookBidTicks).toBe(toTicks(0.4, g));
+    expect(r.bookAskTicks).toBe(toTicks(0.6, g));
+  });
+
+  it("treats an all-zero book as empty", () => {
+    const r = reference(book([[0.4, 0]], [[0.6, 0]]), g);
+    expect(r.source).toBe("even-odds");
+  });
+});
+
 describe("compressionTicks", () => {
   it("reports how much tighter the quotes are than the book", () => {
     const r = reference(book([[0.45, 10]], [[0.55, 10]]), G6);

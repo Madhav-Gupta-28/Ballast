@@ -23,7 +23,7 @@ export interface Book {
   asks: [price: number, size: number][];
 }
 
-export type PriceSource = "mid" | "one-sided" | "underlying" | "even-odds";
+export type PriceSource = "mid" | "one-sided" | "underlying" | "even-odds" | "crossed";
 
 export interface TickGrid {
   tick: bigint;
@@ -112,8 +112,19 @@ export function underlyingPrior(spot: number, strike: number, sigmaAnnual: numbe
 }
 
 export const clamp01 = (p: number) => Math.min(1, Math.max(0, p));
-export const bestBid = (b: Book) => b.bids[0]?.[0];
-export const bestAsk = (b: Book) => b.asks[0]?.[0];
+
+/**
+ * Best price on a side, ignoring levels with nothing left on them.
+ *
+ * A zero-size level is not liquidity. Taking one as the top of book would put
+ * the whole quote around a price nobody is actually offering.
+ */
+const best = (levels: [number, number][]): number | undefined => {
+  for (const [price, size] of levels) if (size > 0) return price;
+  return undefined;
+};
+export const bestBid = (b: Book) => best(b.bids);
+export const bestAsk = (b: Book) => best(b.asks);
 
 /**
  * Where to centre the quotes.
@@ -129,9 +140,17 @@ export function reference(
   const b = bestBid(book);
   const a = bestAsk(book);
 
-  if (b !== undefined && a !== undefined && a > b) {
+  if (b !== undefined && a !== undefined) {
     const bt = toTicks(b, g);
     const at = toTicks(a, g);
+
+    // A crossed or locked book (bid >= ask) is not a market, it is stale or
+    // inconsistent data. Falling through to the one-sided branch would leave
+    // `bookAskTicks` undefined, so `deriveQuotes` would have nothing to clamp
+    // against and would happily quote straight through the resting side.
+    // Refuse instead.
+    if (at <= bt) return { ticks: (bt + at) / 2n, source: "crossed", bookBidTicks: bt, bookAskTicks: at };
+
     return { ticks: (bt + at) / 2n, source: "mid", bookBidTicks: bt, bookAskTicks: at };
   }
 
@@ -172,6 +191,9 @@ export interface Quotes {
  * side is one Ballast should leave alone.
  */
 export function deriveQuotes(ref: Reference, halfSpread: number, g: TickGrid, minHalfSpreadTicks = 1n): Quotes | null {
+  // Never quote into a book that is crossed or locked.
+  if (ref.source === "crossed") return null;
+
   let h = toTicks(halfSpread, g);
 
   // Never rest outside the prevailing book: cap the half-spread so both legs
