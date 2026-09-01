@@ -111,9 +111,12 @@ contract BallastVault is ERC20, ReentrancyGuard {
         _;
     }
 
-    /// @dev Every operator action re-checks the bound after it runs. Checking
-    ///      afterwards rather than before is deliberate: it catches an action
-    ///      that *creates* an imbalance, which is the case that matters.
+    /// @dev Backstop. Minting or burning a complete set moves both legs by the
+    ///      same amount and so cannot change the imbalance — that is the whole
+    ///      point of §2.1 — which means this modifier almost never binds. The
+    ///      guard that does the real work is the forward-looking check in
+    ///      `placeOrder`. This stays as defence in depth against a pool that
+    ///      does not behave the way the ABI says it does.
     modifier boundedImbalance() {
         _;
         uint256 imb = imbalance();
@@ -264,6 +267,14 @@ contract BallastVault is ERC20, ReentrancyGuard {
         uint8 selfMatchingOption
     ) external onlyOperator boundedImbalance returns (uint256 orderId) {
         if (!poolAllowed[pool]) revert PoolNotAllowed();
+
+        // Forward-looking cap check. An imbalance is created by a FILL, and a
+        // fill does not call this contract — a taker lifts a resting order and
+        // the vault's legs move without any vault function running. So the only
+        // place the cap can actually bind is here, before the order exists:
+        // refuse any order that could breach the cap if it filled in full.
+        uint256 worstCase = imbalance() + quantity;
+        if (worstCase > imbalanceCap) revert ImbalanceCapExceeded(worstCase, imbalanceCap);
 
         // Buying a leg escrows collateral; the pool pulls it.
         if (isBid) {
