@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# foundry
+out/
+cache/
+broadcast/*/dry-run/
+
+# env & keys
+.env
+.env.*
+!.env.example
+*.key
+
+# build output
+dist/
+.next/
+coverage/
+lcov.info
+
+# os / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
