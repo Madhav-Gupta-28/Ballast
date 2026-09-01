@@ -42,8 +42,12 @@ export const vaultAbi = parseAbi([
   "function placeBinaryOrder(address pool, uint8 kind, uint256 price, uint256 quantity, uint64 expireTimestampNs, uint8 orderType, uint8 selfMatchingOption) returns (uint256 orderId)",
   "function cancelOrder(address pool, uint128 orderId)",
   "function cancelOrders(address pool, uint128[] orderIds)",
+  // permissionless
+  "function redeem(uint256 outcomeId, uint256 amount) returns (uint256 collateralOut)",
+  "function finalizeAndRedeem(address pool, uint256 outcomeId, uint256 amount) returns (uint256 collateralOut)",
   // owner writes
   "function allowPool(address pool)",
+  "function purgePool(address pool)",
   "function setOperator(address operator)",
   "function setPaused(bool p)",
 ]);
@@ -215,6 +219,16 @@ export class Vault {
       [pool, kind, price, quantity, expireNs, orderType, selfMatching],
       `${KIND_NAME[kind]} ${quantity} @ ${price}`,
     );
+  }
+
+  /**
+   * Cash a settled position back into collateral.
+   *
+   * Permissionless on the contract, and the proceeds go to the vault whoever
+   * calls it — so there is no discretion here to get wrong.
+   */
+  redeem(outcomeId: bigint, amount: bigint) {
+    return this.send("redeem", [outcomeId, amount], `redeem(${amount} of ${String(outcomeId).slice(0, 12)}…)`);
   }
 
   cancelOrders(pool: Address, orderIds: bigint[]) {

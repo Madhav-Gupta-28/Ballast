@@ -10,7 +10,7 @@ import type { Address } from "viem";
 import type { MarketOnchain, UnifiedMarket } from "@somnia-chain/markets-sdk";
 import type { EcContext } from "./ec/exchange.js";
 import { activeMarkets, marketOnchain, outcomeSymbols, isTradable } from "./ec/markets.js";
-import { maybeClaim } from "./ec/claim.js";
+import { sweepRedemptions } from "./claim.js";
 import { reference, deriveQuotes, compressionTicks, fromTicks, type Book, type TickGrid } from "./pricing.js";
 import { Vault, human, OrderKind } from "./vault.js";
 
@@ -33,13 +33,42 @@ export interface PassStats {
   bookSpreadTicks: bigint;
   /** Live markets whose pool the owner has not allowlisted yet. */
   unlistedPools: number;
+  /** Stale quotes pulled before requoting. */
+  cancelled: number;
+  /** Settled positions redeemed back into collateral. */
+  redeemed: number;
   errors: string[];
 }
 
-/** Live orders we placed, per pool, so they can be cancelled next pass. */
-const resting = new Map<string, bigint[]>();
-
 const nowNs = () => BigInt(Date.now()) * 1_000_000n;
+
+/** Settled positions are swept on their own cadence, not every pass. */
+const SWEEP_INTERVAL_MS = 10 * 60_000;
+let lastSweep = 0;
+
+/**
+ * The vault's still-open order ids on one pool, from the indexer.
+ *
+ * The order id is a return value of `placeBinaryOrder`, and a transaction
+ * receipt does not carry it — so tracking ids in memory means parsing logs, and
+ * loses everything on restart anyway. The indexer already knows, and it is the
+ * same source the rest of this bot reads, so ask it.
+ */
+async function openOrderIds(indexerUrl: string, vault: string, pool: string): Promise<bigint[]> {
+  const query = `{ Order(
+      where: { owner: {_eq: "${vault.toLowerCase()}"}, status: {_eq: "Open"},
+               market: { binaryPoolAddress: {_eq: "${pool.toLowerCase()}"} } }
+      limit: 50
+    ) { orderId } }`;
+  const r = await fetch(indexerUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  const j = (await r.json()) as { data?: { Order?: { orderId: string }[] }; errors?: unknown };
+  if (!j.data?.Order) return [];
+  return j.data.Order.map((o) => BigInt(o.orderId));
+}
 
 /** Snap a human size down to a whole number of lots, in raw units. */
 export function quantizeRaw(human_: number, lot: bigint, decimals: number): bigint {
@@ -61,6 +90,8 @@ export async function runPass(
     compressionTicks: 0n,
     bookSpreadTicks: 0n,
     unlistedPools: 0,
+    cancelled: 0,
+    redeemed: 0,
     errors: [],
   };
 
@@ -94,13 +125,20 @@ export async function runPass(
     }
   }
 
-  // Claiming signs from the same key as quoting. Two senders on one key race
-  // each other's nonce, so it runs INSIDE the loop rather than on a timer —
-  // that serialises it for free. ec-core throttles it internally.
-  try {
-    await maybeClaim(ctx);
-  } catch (e) {
-    stats.errors.push(`claim: ${(e as Error).message}`);
+  // Redemption runs INSIDE the loop, not on a timer: it signs from the same
+  // key as the quoter, and two senders on one key race each other's nonce.
+  //
+  // Note this is NOT ec-core's maybeClaim. That redeems the signer's holdings,
+  // and the tokens are held by the vault, so it could never have reached them.
+  if (Date.now() - lastSweep > SWEEP_INTERVAL_MS) {
+    lastSweep = Date.now();
+    try {
+      const swept = await sweepRedemptions(ctx, vault);
+      stats.redeemed = swept.redeemed;
+      stats.errors.push(...swept.errors);
+    } catch (e) {
+      stats.errors.push(`sweep: ${(e as Error).message}`);
+    }
   }
 
   return stats;
@@ -161,12 +199,14 @@ async function quoteOne(
     await vault.mintSet(pool, sizeRaw - held);
   }
 
-  // Clear last pass's quotes before posting new ones.
-  const key = pool.toLowerCase();
-  const stale = resting.get(key) ?? [];
+  // Clear last pass's quotes before posting new ones. Without this the vault
+  // ends up with several generations resting at once - order expiry is three
+  // refresh intervals - each one escrowing collateral or outcome tokens it can
+  // no longer use, and quoting at prices it has since moved away from.
+  const stale = await openOrderIds(ctx.config.indexerUrl, vault.address, pool).catch(() => [] as bigint[]);
   if (stale.length) {
     await vault.cancelOrders(pool, stale);
-    resting.set(key, []);
+    stats.cancelled += stale.length;
   }
 
   // Expiry is mandatory and capped at the market's own. Set it just past the
@@ -206,6 +246,8 @@ async function quoteOne(
 export function summarise(stats: PassStats, grid: TickGrid): string {
   const parts = [`${stats.quoted}/${stats.markets} quoted`];
   if (stats.skipped) parts.push(`${stats.skipped} skipped`);
+  if (stats.cancelled) parts.push(`${stats.cancelled} stale pulled`);
+  if (stats.redeemed) parts.push(`${stats.redeemed} redeemed`);
   if (stats.unlistedPools) parts.push(`${stats.unlistedPools} on new pools (run setup --allow)`);
   if (stats.bookSpreadTicks > 0n) {
     const before = fromTicks(stats.bookSpreadTicks, grid);

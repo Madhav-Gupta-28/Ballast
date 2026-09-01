@@ -41,6 +41,8 @@ export interface EcAddresses {
   oracleHub?: Address;
   operatorPermissionsRegistry?: Address;
   fakeOracle?: Address;
+  /** ERC-6909 singleton every outcome token lives on. Added for Ballast. */
+  outcomeToken?: Address;
 }
 
 /** Protocol core — CREATE3, identical across chains. */
@@ -71,6 +73,7 @@ export const DEPLOYMENTS: Record<"testnet" | "mainnet", NetworkDeployment> = {
       // TestUSDC faucet (public `faucet(uint256)`, 6 dp)
       collateral: "0x70a86D8842FB63C4Ad2b7cdddF530eBf1BB25d8E",
       testUsdc: "0x70a86D8842FB63C4Ad2b7cdddF530eBf1BB25d8E",
+      outcomeToken: "0xB52c5934113Af5c0Bb20eb3C72290C8215f755b9",
       // venue 2's creator — the venue the LIVE markets sit on (venue 1's
       // creator 0x46fB24… is idle). Only used as an extra live-tail discovery
       // source; the module (which emits every MarketCreated) covers discovery
