@@ -10,10 +10,10 @@
 const R = 118;
 
 const STEPS = [
-  { k: "Quote", d: "both sides, inside the book", x: 0, y: -R, tx: 0, ty: -R - 44, anchor: "middle" },
-  { k: "Fill", d: "a taker crosses", x: R, y: 0, tx: R + 34, ty: -6, anchor: "start" },
-  { k: "Settle", d: "the window expires", x: 0, y: R, tx: 0, ty: R + 40, anchor: "middle" },
-  { k: "Redeem", d: "winners \u2192 collateral", x: -R, y: 0, tx: -R - 34, ty: -6, anchor: "end" },
+  { k: "Quote", d: "a bid and an ask", x: 0, y: -R, tx: 0, ty: -R - 44, anchor: "middle" },
+  { k: "Fill", d: "a trader takes it", x: R, y: 0, tx: R + 34, ty: -6, anchor: "start" },
+  { k: "Settle", d: "the market ends", x: 0, y: R, tx: 0, ty: R + 40, anchor: "middle" },
+  { k: "Redeem", d: "winnings \u2192 cash", x: -R, y: 0, tx: -R - 34, ty: -6, anchor: "end" },
 ] as const;
 
 export default function Lifecycle() {
@@ -35,11 +35,14 @@ export default function Lifecycle() {
           </g>
         ))}
 
-        <text x="0" y="-6" textAnchor="middle" className="loop-mk">
-          VAULT RISK
+        <text x="0" y="-10" textAnchor="middle" className="loop-mk">
+          EVERY FEW MINUTES
         </text>
-        <text x="0" y="16" textAnchor="middle" className="loop-mv">
-          imbalance only
+        <text x="0" y="14" textAnchor="middle" className="loop-mv">
+          unattended
+        </text>
+        <text x="0" y="36" textAnchor="middle" className="loop-ms">
+          no human in the loop
         </text>
 
         <circle r="6.5" className="loop-dot">

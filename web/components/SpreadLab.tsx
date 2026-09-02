@@ -42,7 +42,7 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
     return (
       <div className="inst">
         <div className="inst-head">
-          <span className="t">Spread lab · live book</span>
+          <span className="t">Try it · a real live market</span>
         </div>
         <div className="inst-body">
           <p className="panel-empty">No two-sided market open to experiment on right now.</p>
@@ -65,7 +65,7 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
   return (
     <div className="inst">
       <div className="inst-head">
-        <span className="t">Spread lab · live book</span>
+        <span className="t">Try it · a real live market</span>
         <div className="chips">
           {markets.map((x, n) => (
             <button
@@ -88,15 +88,12 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
               bookAsk={m.bookAsk}
               ourBid={q.bid}
               ourAsk={q.ask}
-              caption={`${m.asset} ${m.window} · live book`}
+              caption={`${m.asset} ${m.window} · read live from the venue`}
             />
           ) : (
             <div className="refusal">
               <b>Ballast declines to quote here.</b>
-              <span>
-                The book is already tight to one tick a side. Resting inside it would mean crossing the
-                resting orders rather than improving on them, so the quoter posts nothing.
-              </span>
+              <span>The book is already as tight as it can get. Quoting here would not improve it.</span>
             </div>
           )}
         </div>
@@ -116,8 +113,7 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
             onChange={(e) => setHalfCents(Number(e.target.value))}
           />
           <p className="ctl-note">
-            How far either side of the book&apos;s mid Ballast rests. The quoter runs at{" "}
-            <b className="mono">0.50c</b>.
+            The quoter runs at <b className="mono">0.50c</b>.
           </p>
 
           <dl className="lab-out">
@@ -137,15 +133,12 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
 
           {q && clamped && (
             <p className="verdict amber">
-              Clamped. {cents(asked)} of width was asked for, but the book is only{" "}
-              {cents(bookSpread)} wide — so the quote is pinned one tick inside it rather than resting
-              outside, where it would never trade.
+              Too wide to matter. You asked for {cents(asked)}, but the book is only {cents(bookSpread)} —
+              so Ballast pins its quote just inside instead.
             </p>
           )}
           {q && !clamped && (
-            <p className="verdict">
-              Rests strictly inside the book on both sides — a taker here fills against Ballast.
-            </p>
+            <p className="verdict">Inside the book on both sides — a trader here fills against Ballast.</p>
           )}
         </div>
       </div>

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { MarketView } from "@/lib/somnia";
 import { snapshot, cfg, cents, prob, countdown } from "@/lib/view";
 import { MiniRail } from "@/components/SpreadRail";
-import SpreadLab, { type LabMarket } from "@/components/SpreadLab";
 import Rise from "@/components/Rise";
+import EndLine from "@/components/EndLine";
 
 export const metadata: Metadata = { title: "Markets — Ballast" };
 export const revalidate = 0;
@@ -20,17 +20,9 @@ function Status({ m }: { m: MarketView }) {
 
 export default async function Markets() {
   const s = await snapshot();
-  const lab: LabMarket[] = s.quotable.slice(0, 6).map((m) => ({
-    symbol: m.symbol,
-    asset: m.asset,
-    window: m.symbol.replace(m.asset, "").trim(),
-    bookBid: m.bookBid!,
-    bookAsk: m.bookAsk!,
-  }));
-
   return (
     <>
-      <section className="section tight">
+      <section className="section first last">
         <div className="wrap">
           <Rise>
             <p className="eyebrow">Live</p>
@@ -146,26 +138,7 @@ export default async function Markets() {
               </table>
             </div>
           </Rise>
-        </div>
-      </section>
-
-      <section className="section">
-        <div className="wrap">
-          <Rise>
-            <div className="narrow center">
-              <p className="eyebrow dim">Try it</p>
-              <h2 className="h">Choose how tight to quote</h2>
-              <p className="sub center">
-                Drag the half-spread against a real live book. This runs the same pricing module the quoter
-                posts with — when it refuses, that is the actual refusal.
-              </p>
-            </div>
-          </Rise>
-          <Rise delay={90}>
-            <div style={{ marginTop: 34 }}>
-              <SpreadLab markets={lab} grid={{ tick: cfg.tick, decimals: cfg.decimals }} />
-            </div>
-          </Rise>
+          <EndLine />
         </div>
       </section>
     </>

@@ -189,9 +189,7 @@ export default function VaultPanel({ vault }: { vault: string }) {
       <div className="panel">
         <div className="panel-h">Your position</div>
         <div className="panel-b">
-          <p className="panel-empty">
-            Connect a wallet to deposit {symbol}. Your shares earn the spread the quoter captures.
-          </p>
+          <p className="panel-empty">Connect a wallet to deposit {symbol}.</p>
           <button
             className="btn primary"
             disabled={connecting || !injectedConnector}
@@ -324,10 +322,6 @@ export default function VaultPanel({ vault }: { vault: string }) {
         </button>
       )}
 
-      <p className="fine">
-        Withdrawals pay from idle collateral. If the vault is fully deployed into quotes, the operator
-        flattens first — depositors are never paid out of an unclosed position.
-      </p>
       </div>
     </div>
   );

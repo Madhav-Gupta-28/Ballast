@@ -3,7 +3,6 @@ import { Fraunces, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -28,9 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <style>{`.rise{opacity:1 !important;transform:none !important}`}</style>
         </noscript>
         <Providers>
+          <div className="hazard" aria-hidden="true" />
           <Nav />
           <main>{children}</main>
-          <Footer />
         </Providers>
       </body>
     </html>
