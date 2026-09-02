@@ -70,6 +70,8 @@ export interface MarketView {
   savedPct?: number;
   /** Which side a taker simply cannot trade on right now. */
   gap?: "no-bids" | "no-asks" | "empty";
+  /** Best bid is at or above best ask — stale or inconsistent, not a market. */
+  crossed: boolean;
   ballastIsQuoting: boolean;
 }
 
@@ -158,7 +160,11 @@ export async function getMarkets(net: NetworkName, halfSpread = 0.005, vault?: s
             ? "no-asks"
             : undefined;
 
-    const bookSpread = twoSided ? fromTicks(ref.bookAskTicks! - ref.bookBidTicks!, grid) : undefined;
+    const crossed = ref.source === "crossed";
+    // A crossed book has no meaningful width; reporting one invites a reader to
+    // treat it as a spread Ballast could improve on.
+    const bookSpread =
+      twoSided && !crossed ? fromTicks(ref.bookAskTicks! - ref.bookBidTicks!, grid) : undefined;
     const saved = q && twoSided ? compressionTicks(ref, q) : undefined;
 
     const mins = Math.round(Number(m.intervalSec) / 60);
@@ -180,6 +186,7 @@ export async function getMarkets(net: NetworkName, halfSpread = 0.005, vault?: s
           ? (Number(saved) / Number(ref.bookAskTicks! - ref.bookBidTicks!)) * 100
           : undefined,
       gap,
+      crossed,
       ballastIsQuoting: vaultLc ? m.orders.some((o) => o.owner.toLowerCase() === vaultLc) : false,
     };
   });

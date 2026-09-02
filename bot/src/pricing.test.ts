@@ -227,3 +227,23 @@ describe("parseUnitsExact", () => {
     expect(() => parseUnitsExact("1.0000001", 6)).toThrow(/decimal places/);
   });
 });
+
+describe("fromTicks sign handling", () => {
+  it("returns a negative number for a negative tick count", () => {
+    // A crossed book yields ask - bid < 0. Padding the digits without first
+    // taking the sign off produced "0.-43000" -> NaN, and the UI showed "NaNc".
+    for (const g of [G6, G18]) {
+      expect(fromTicks(-43n, g)).toBeCloseTo(-0.043, 6);
+      expect(fromTicks(-1n, g)).toBeCloseTo(-0.001, 6);
+      expect(Number.isNaN(fromTicks(-43n, g))).toBe(false);
+    }
+  });
+
+  it("still round-trips positives and zero", () => {
+    for (const g of [G6, G18]) {
+      expect(fromTicks(0n, g)).toBe(0);
+      expect(fromTicks(500n, g)).toBeCloseTo(0.5, 6);
+      expect(fromTicks(-500n, g)).toBeCloseTo(-0.5, 6);
+    }
+  });
+});

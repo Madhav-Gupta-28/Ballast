@@ -65,13 +65,20 @@ export function toTicks(p: number, g: TickGrid): bigint {
   return BigInt(Math.round(p / tickHuman));
 }
 
-/** Tick count -> human probability, for display only. */
+/**
+ * Tick count -> human probability, for display only.
+ *
+ * The sign has to come off before the digits are padded. A crossed book gives a
+ * negative tick count, and "-43000" padded and sliced yields "0.-43000", which
+ * is NaN — the spread column rendered "NaNc" until this was handled.
+ */
 export function fromTicks(ticks: bigint, g: TickGrid): number {
-  const raw = ticks * g.tick;
+  const neg = ticks < 0n;
+  const raw = (neg ? -ticks : ticks) * g.tick;
   const s = raw.toString().padStart(g.decimals + 1, "0");
   const whole = s.slice(0, s.length - g.decimals);
   const frac = s.slice(s.length - g.decimals);
-  return Number(`${whole}.${frac}`);
+  return Number(`${neg ? "-" : ""}${whole}.${frac}`);
 }
 
 /** Ticks in the whole (0,1) range. */
