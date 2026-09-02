@@ -40,11 +40,11 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
 
   if (!m || !result) {
     return (
-      <div className="lab">
-        <div className="lab-head">
+      <div className="inst">
+        <div className="inst-head">
           <span className="t">Spread lab · live book</span>
         </div>
-        <div className="lab-body">
+        <div className="inst-body">
           <p className="panel-empty">No two-sided market open to experiment on right now.</p>
         </div>
       </div>
@@ -63,10 +63,10 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
   const clamped = q ? ourSpread! < asked - fromTicks(1n, grid) / 2 : false;
 
   return (
-    <div className="lab">
-      <div className="lab-head">
+    <div className="inst">
+      <div className="inst-head">
         <span className="t">Spread lab · live book</span>
-        <div className="lab-chips">
+        <div className="chips">
           {markets.map((x, n) => (
             <button
               key={x.symbol}
@@ -80,7 +80,7 @@ export default function SpreadLab({ markets, grid }: { markets: LabMarket[]; gri
         </div>
       </div>
 
-      <div className="lab-body">
+      <div className="inst-body">
         <div className="lab-rail">
           {q ? (
             <HeroRail
