@@ -3,54 +3,69 @@ import { fmt } from "@/lib/somnia";
 import { snapshot, cfg, VAULT } from "@/lib/view";
 import VaultPanel from "@/components/VaultPanel";
 import EndLine from "@/components/EndLine";
+import { Suspense } from "react";
 import Rise from "@/components/Rise";
+import { SkeletonStats } from "@/components/Skeleton";
 
 export const metadata: Metadata = { title: "App — Ballast" };
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
-export default async function App() {
+/** Only the four numbers need the chain; the panel reads it client-side. */
+async function VaultStats() {
   const s = await snapshot();
   const priceNum = s.vault ? Number(s.vault.sharePrice) / 1e18 : 1;
   const ret = (priceNum - 1) * 100;
 
   return (
+    <div className="stats" style={{ marginTop: 48 }}>
+      <div className="stat">
+        <div className="v">
+          {s.vault ? fmt(s.vault.nav, cfg.decimals) : "—"}
+          <small>{cfg.collateralSymbol}</small>
+        </div>
+        <div className="k">In the vault</div>
+      </div>
+      <div className="stat">
+        <div className="v">{s.vault ? fmt(s.vault.sharePrice, 18, 4) : "—"}</div>
+        <div className="k">Price per share</div>
+      </div>
+      <div className="stat">
+        <div className={`v ${ret >= 0 ? "mint" : "amber"}`}>
+          {s.vault ? `${ret >= 0 ? "+" : ""}${ret.toFixed(2)}%` : "—"}
+        </div>
+        <div className="k">Return so far</div>
+      </div>
+      <div className="stat">
+        <div className="v accent">
+          {s.vault ? fmt(s.vault.imbalance, cfg.decimals, 1) : "—"}
+          <small>/ {s.vault ? fmt(s.vault.imbalanceCap, cfg.decimals, 0) : "—"}</small>
+        </div>
+        <div className="k">Risk vs its cap</div>
+      </div>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
     <section className="section first last">
       <div className="wrap">
-        <Rise>
-          <p className="eyebrow">Somnia testnet</p>
+        <p className="eyebrow">Somnia testnet</p>
           <h1 className="display">Deposit</h1>
           <p className="lede">Fund the vault and own a share of what it makes.</p>
-        </Rise>
 
-        <Rise delay={70}>
-          <div className="stats" style={{ marginTop: 48 }}>
-            <div className="stat">
-              <div className="v">
-                {s.vault ? fmt(s.vault.nav, cfg.decimals) : "—"}
-                <small>{cfg.collateralSymbol}</small>
+        <div>
+          <Suspense
+            fallback={
+              <div style={{ marginTop: 48 }}>
+                <SkeletonStats />
               </div>
-              <div className="k">In the vault</div>
-            </div>
-            <div className="stat">
-              <div className="v">{s.vault ? fmt(s.vault.sharePrice, 18, 4) : "—"}</div>
-              <div className="k">Price per share</div>
-            </div>
-            <div className="stat">
-              <div className={`v ${ret >= 0 ? "mint" : "amber"}`}>
-                {s.vault ? `${ret >= 0 ? "+" : ""}${ret.toFixed(2)}%` : "—"}
-              </div>
-              <div className="k">Return so far</div>
-            </div>
-            <div className="stat">
-              <div className="v accent">
-                {s.vault ? fmt(s.vault.imbalance, cfg.decimals, 1) : "—"}
-                <small>/ {s.vault ? fmt(s.vault.imbalanceCap, cfg.decimals, 0) : "—"}</small>
-              </div>
-              <div className="k">Risk vs its cap</div>
-            </div>
-          </div>
-        </Rise>
+            }
+          >
+            <VaultStats />
+          </Suspense>
+        </div>
 
         <Rise delay={110}>
           <div className="panelwrap">

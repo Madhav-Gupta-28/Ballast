@@ -12,12 +12,10 @@ export default function HowItWorks() {
     <>
       <section className="section first">
         <div className="wrap narrow center">
-          <Rise>
-            <p className="eyebrow">The design</p>
+          <p className="eyebrow">The design</p>
             <h1 className="display">
               Two diagrams. <em>That is the whole thing.</em>
             </h1>
-          </Rise>
         </div>
       </section>
 

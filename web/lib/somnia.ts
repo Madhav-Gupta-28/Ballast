@@ -213,7 +213,11 @@ export interface VaultView {
 
 export async function getVault(net: NetworkName, address: string): Promise<VaultView | null> {
   const cfg = NETWORK[net];
-  const client = createPublicClient({ transport: http(cfg.rpc) });
+  // Six reads over six round trips to a ~500ms RPC is three seconds of nothing.
+  // Batching folds them into a single request.
+  const client = createPublicClient({
+    transport: http(cfg.rpc, { batch: { wait: 8 }, timeout: 12_000 }),
+  });
   try {
     const read = (functionName: string) =>
       client.readContract({ address: address as Address, abi: vaultAbi, functionName } as never) as Promise<

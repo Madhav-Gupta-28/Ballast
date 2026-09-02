@@ -194,9 +194,19 @@ h3.h3 {
 }
 
 /* ── scroll reveal ────────────────────────────────────────── */
-.rise { opacity: 0; transform: translateY(18px); transition: opacity 700ms ease, transform 700ms cubic-bezier(.16,1,.3,1); }
-.rise.in { opacity: 1; transform: none; }
-/* Never let a decorative reveal be the reason a page renders blank. */
+/*
+ * A decorative reveal must never be the reason content is invisible. The
+ * fallback animation reveals anything the observer has not reached within
+ * 1.2s — so a slow hydrate, a failed script or no JS at all still shows the
+ * page rather than a black rectangle.
+ */
+.rise {
+  opacity: 0; transform: translateY(18px);
+  transition: opacity 700ms ease, transform 700ms cubic-bezier(.16, 1, .3, 1);
+  animation: riseFallback 1ms linear 1200ms forwards;
+}
+@keyframes riseFallback { to { opacity: 1; transform: none; } }
+.rise.in { opacity: 1; transform: none; animation: none; }
 .no-js .rise { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -581,3 +591,11 @@ h2.h.big { font-size: clamp(36px, 6.6vw, 76px); line-height: 1.03; letter-spacin
 .set-say b { color: var(--ink); font-weight: 600; }
 .loop-ms { font-family: var(--font-mono), monospace; font-size: 10.5px; fill: #5e5e68; }
 @media (max-width: 700px) { .loop-ms { display: none; } }
+
+/* ── loading placeholders ── */
+@keyframes sheen { 0% { opacity: .5 } 50% { opacity: .95 } 100% { opacity: .5 } }
+.sk { background: var(--surface-2); border-radius: 6px; animation: sheen 1.5s ease-in-out infinite; }
+.sk-v { height: 30px; width: 62%; }
+.sk-k { height: 10px; width: 44%; margin-top: 13px; border-radius: 3px; }
+.sk-block { border: 1px solid var(--rule); border-radius: 16px; background: var(--surface); width: 100%; }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }

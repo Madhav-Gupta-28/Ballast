@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { fmt } from "@/lib/somnia";
 import { snapshot, cfg } from "@/lib/view";
 import { FACTS, n } from "@/lib/facts";
 import SpreadLab, { type LabMarket } from "@/components/SpreadLab";
 import EndLine from "@/components/EndLine";
 import Rise from "@/components/Rise";
+import { SkeletonStats, SkeletonPanel } from "@/components/Skeleton";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+/** Everything that has to wait on the venue lives here, behind Suspense. */
+async function LiveProof() {
   const s = await snapshot();
   const lab: LabMarket[] = s.quotable.slice(0, 6).map((m) => ({
     symbol: m.symbol,
@@ -21,10 +24,41 @@ export default async function Home() {
 
   return (
     <>
+      <SpreadLab markets={lab} grid={{ tick: cfg.tick, decimals: cfg.decimals }} />
+      <div className="stats" style={{ marginTop: 20 }}>
+        <div className="stat">
+          <div className="v">
+            {s.vault ? fmt(s.vault.nav, cfg.decimals) : "—"}
+            <small>{cfg.collateralSymbol}</small>
+          </div>
+          <div className="k">In the vault</div>
+        </div>
+        <div className="stat">
+          <div className="v accent">{s.markets.length}</div>
+          <div className="k">Markets quoted</div>
+        </div>
+        <div className="stat">
+          <div className="v">{s.quotable.length ? `${s.savedPct.toFixed(0)}%` : "—"}</div>
+          <div className="k">Tighter than the venue</div>
+        </div>
+        <div className="stat">
+          <div className={`v ${s.gaps ? "amber" : ""}`}>
+            {s.gaps}
+            <small>/ {s.markets.length}</small>
+          </div>
+          <div className="k">Still one-sided</div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function Home() {
+  return (
+    <>
       <section className="section first">
         <div className="wrap">
-          <Rise>
-            <p className="eyebrow">Built on Somnia · DreamDEX</p>
+          <p className="eyebrow">Built on Somnia · DreamDEX</p>
             <h1 className="display">
               The order book is empty. <em>Ballast is the other side.</em>
             </h1>
@@ -38,7 +72,6 @@ export default async function Home() {
                 Supply the vault <span className="arr">→</span>
               </Link>
             </div>
-          </Rise>
         </div>
       </section>
 
@@ -76,38 +109,22 @@ export default async function Home() {
               </p>
             </div>
           </Rise>
-          <Rise delay={90}>
+          <div>
             <div style={{ marginTop: 46 }}>
-              <SpreadLab markets={lab} grid={{ tick: cfg.tick, decimals: cfg.decimals }} />
+              <Suspense
+                fallback={
+                  <>
+                    <SkeletonPanel height={286} />
+                    <div style={{ marginTop: 20 }}>
+                      <SkeletonStats />
+                    </div>
+                  </>
+                }
+              >
+                <LiveProof />
+              </Suspense>
             </div>
-          </Rise>
-
-          <Rise delay={140}>
-            <div className="stats" style={{ marginTop: 20 }}>
-              <div className="stat">
-                <div className="v">
-                  {s.vault ? fmt(s.vault.nav, cfg.decimals) : "—"}
-                  <small>{cfg.collateralSymbol}</small>
-                </div>
-                <div className="k">In the vault</div>
-              </div>
-              <div className="stat">
-                <div className="v accent">{s.markets.length}</div>
-                <div className="k">Markets quoted</div>
-              </div>
-              <div className="stat">
-                <div className="v">{s.quotable.length ? `${s.savedPct.toFixed(0)}%` : "—"}</div>
-                <div className="k">Tighter than the venue</div>
-              </div>
-              <div className="stat">
-                <div className={`v ${s.gaps ? "amber" : ""}`}>
-                  {s.gaps}
-                  <small>/ {s.markets.length}</small>
-                </div>
-                <div className="k">Still one-sided</div>
-              </div>
-            </div>
-          </Rise>
+          </div>
         </div>
       </section>
 
