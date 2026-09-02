@@ -36,3 +36,4 @@ next-env.d.ts
 
 # next build info
 *.tsbuildinfo
+.vercel

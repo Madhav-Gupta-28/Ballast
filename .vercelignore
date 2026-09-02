@@ -1,0 +1,22 @@
+# Only web/ is built; everything else is upload weight.
+#
+# Every path here is anchored with a leading slash. A bare `lib` matched
+# web/lib/ as well as Foundry's, and the build failed on "@/lib/pricing" —
+# the same shape as the bare `lib/` that once hid web/lib from git.
+node_modules
+**/node_modules
+.DS_Store
+*.log
+
+/lib
+/src
+/test
+/script
+/out
+/cache
+/broadcast
+/bot
+
+/web/.next
+/web/scripts
+/web/tsconfig.tsbuildinfo
