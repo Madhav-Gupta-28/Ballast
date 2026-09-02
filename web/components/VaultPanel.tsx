@@ -176,7 +176,9 @@ export default function VaultPanel({ vault }: { vault: string }) {
     return (
       <div className="panel">
         <div className="panel-h">Your position</div>
-        <p className="panel-empty">Vault not configured — set NEXT_PUBLIC_VAULT_ADDRESS.</p>
+        <div className="panel-b">
+          <p className="panel-empty">Vault not configured — set NEXT_PUBLIC_VAULT_ADDRESS.</p>
+        </div>
       </div>
     );
   }
@@ -186,17 +188,18 @@ export default function VaultPanel({ vault }: { vault: string }) {
     return (
       <div className="panel">
         <div className="panel-h">Your position</div>
-        <p className="panel-empty">
-          Ballast is the market maker — you supply the balance sheet. Deposit {symbol} and your shares
-          earn the spread it captures.
-        </p>
-        <button
-          className="btn primary"
-          disabled={connecting || !injectedConnector}
-          onClick={() => injectedConnector && connect({ connector: injectedConnector })}
-        >
-          {connecting ? "Connecting…" : injectedConnector ? "Connect wallet" : "No wallet detected"}
-        </button>
+        <div className="panel-b">
+          <p className="panel-empty">
+            Connect a wallet to deposit {symbol}. Your shares earn the spread the quoter captures.
+          </p>
+          <button
+            className="btn primary"
+            disabled={connecting || !injectedConnector}
+            onClick={() => injectedConnector && connect({ connector: injectedConnector })}
+          >
+            {connecting ? "Connecting…" : injectedConnector ? "Connect wallet" : "No wallet detected"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -205,10 +208,12 @@ export default function VaultPanel({ vault }: { vault: string }) {
     return (
       <div className="panel">
         <div className="panel-h">Your position</div>
-        <p className="panel-empty">This vault lives on Somnia Testnet.</p>
-        <button className="btn primary" onClick={() => switchChain({ chainId: somniaTestnet.id })}>
-          Switch to Somnia Testnet
-        </button>
+        <div className="panel-b">
+          <p className="panel-empty">This vault lives on Somnia Testnet.</p>
+          <button className="btn primary" onClick={() => switchChain({ chainId: somniaTestnet.id })}>
+            Switch to Somnia Testnet
+          </button>
+        </div>
       </div>
     );
   }
@@ -222,22 +227,19 @@ export default function VaultPanel({ vault }: { vault: string }) {
         </button>
       </div>
 
+      <div className="panel-b">
       <div className="posrow">
         <div>
           <div className="k">Shares held</div>
           <div className="v mono">{show(shares, SHARE_DP, 4)}</div>
         </div>
         <div>
-          <div className="k">Worth</div>
-          <div className="v mono sea">
-            {show(positionValue, dp, 2)} <span className="unit">{symbol}</span>
-          </div>
+          <div className="k">Worth · <span className="sym-cased">{symbol}</span></div>
+          <div className="v mono violet">{show(positionValue, dp, 2)}</div>
         </div>
         <div>
-          <div className="k">In wallet</div>
-          <div className="v mono">
-            {show(walletBal, dp, 2)} <span className="unit">{symbol}</span>
-          </div>
+          <div className="k">In wallet · <span className="sym-cased">{symbol}</span></div>
+          <div className="v mono">{show(walletBal, dp, 2)}</div>
         </div>
       </div>
 
@@ -326,6 +328,7 @@ export default function VaultPanel({ vault }: { vault: string }) {
         Withdrawals pay from idle collateral. If the vault is fully deployed into quotes, the operator
         flattens first — depositors are never paid out of an unclosed position.
       </p>
+      </div>
     </div>
   );
 }
