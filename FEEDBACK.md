@@ -47,11 +47,15 @@ cast codesize <address>        -> 0
 ```
 
 The block gas limit is 15,000,000,000, so there is no real constraint — you just
-have to know to pass `--gas-limit 50000000`.
+have to know to pass `-g 2500`.
 
 **Suggested fix.** A line in the network docs: *"Gas metering differs from
-Ethereum; contract deployment typically costs 5–10× what `forge` estimates. Pass
-an explicit `--gas-limit`."* This is the single most confusing thing about
+Ethereum; contract deployment typically costs 10–15× what `forge` estimates.
+Note that `forge script --gas-limit` is an alias for `--block-gas-limit` and will
+not raise the transaction's gas — use `-g <percent>` instead."* The second
+sentence matters more than the first: the obvious flag is not merely
+insufficient, it is silently ignored, so the failure looks identical to a
+contract bug. This is the single most confusing thing about
 deploying on Somnia for anyone arriving from mainnet Ethereum.
 
 ---

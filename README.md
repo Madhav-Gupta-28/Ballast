@@ -6,7 +6,7 @@
 
 > *A market with no ballast capsizes.*
 
-Live on Somnia testnet · [`0xbB00fDBc…F1a5AE`](https://shannon-explorer.somnia.network/address/0xbB00fDBc4a0700f3cD41e38A63bc7D1f66F1a5AE)
+Live on Somnia testnet · [`0xbB00fDBc…F1a5AE`](https://shannon-explorer.somnia.network/address/0xEfEb51b07c70e891c95aFdB05aeD2139a40B3905)
 
 ---
 
@@ -88,7 +88,7 @@ asserted in the test suite:
 
 ```
 ballast quoter
-  vault      0xbB00fDBc4a0700f3cD41e38A63bc7D1f66F1a5AE
+  vault      0xEfEb51b07c70e891c95aFdB05aeD2139a40B3905
   nav        500.0000  ·  share 1.0000  ·  imbalance 0.0000/50.0000
 
   ETH-0-01SEP26-1825/tUSDC   was 0.858/0.881   now 0.864/0.874  (mid)
