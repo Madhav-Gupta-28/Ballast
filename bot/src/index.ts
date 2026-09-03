@@ -20,7 +20,9 @@ const num = (k: string, fallback: number): number => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
-  const ctx = createExchange();
+  // Rebuilt on demand: the exchange holds a WebSocket, and a socket that dies
+  // stays dead. See the reconnect logic in the loop below.
+  let ctx = createExchange();
   const { config } = ctx;
 
   const dryRun = process.env.DRY_RUN !== "false" && process.env.DRY_RUN !== "0";
@@ -74,22 +76,59 @@ async function main() {
     if (stop) return;
     stop = true;
     console.log(`\n  stopping — resting orders will age off at their expiry\n`);
-    await shutdown(ctx);
+    await shutdown(ctx).catch(() => {});
     process.exit(0);
   };
   process.on("SIGINT", bye);
   process.on("SIGTERM", bye);
 
+  // A dead WebSocket is the failure that matters here. The context is built
+  // once, so when the socket drops every later pass throws and the process
+  // sits there logging failures while looking perfectly healthy — which is
+  // exactly what happened: twenty minutes of "WebSocket request failed" with
+  // nothing on the book. Rebuild the connection rather than narrate its death.
+  const RECONNECT_AFTER = 3;   // consecutive failed passes before reconnecting
+  const GIVE_UP_AFTER = 12;    // ... before exiting so a supervisor restarts us
+  let consecutiveFailures = 0;
+
   for (;;) {
     if (stop) break;
     const started = Date.now();
+    const at = new Date().toISOString().slice(11, 19);
+
     try {
       const stats = await runPass(ctx, vault, cfg, grid);
-      console.log(`  ${new Date().toISOString().slice(11, 19)}  ${summarise(stats, grid)}`);
+      if (consecutiveFailures > 0) {
+        console.log(`  ${at}  recovered after ${consecutiveFailures} failed pass(es)`);
+      }
+      consecutiveFailures = 0;
+      console.log(`  ${at}  ${summarise(stats, grid)}`);
       for (const e of stats.errors) console.log(`    ! ${e}`);
     } catch (e) {
-      console.log(`  ${new Date().toISOString().slice(11, 19)}  pass failed: ${(e as Error).message}`);
+      consecutiveFailures += 1;
+      console.log(`  ${at}  pass failed (${consecutiveFailures}): ${(e as Error).message}`);
+
+      if (consecutiveFailures >= GIVE_UP_AFTER) {
+        console.error(
+          `\n  ${consecutiveFailures} consecutive failures including reconnects. ` +
+            `Exiting non-zero so a supervisor restarts a clean process.\n`,
+        );
+        await shutdown(ctx).catch(() => {});
+        process.exit(1);
+      }
+
+      if (consecutiveFailures % RECONNECT_AFTER === 0) {
+        console.log(`  ${at}  reconnecting the exchange…`);
+        await shutdown(ctx).catch(() => {});
+        try {
+          ctx = createExchange();
+          console.log(`  ${at}  reconnected`);
+        } catch (re) {
+          console.log(`  ${at}  reconnect failed: ${(re as Error).message}`);
+        }
+      }
     }
+
     const elapsed = Date.now() - started;
     await sleep(Math.max(1_000, cfg.refreshMs - elapsed));
   }
