@@ -135,7 +135,9 @@ All fixed, all now asserted. The full write-up is in [ARCHITECTURE.md §15b](./A
 ## Run it
 
 ```sh
-# contracts
+# contracts — lib/ is gitignored, so restore the pinned deps first
+forge install foundry-rs/forge-std --no-git
+forge install transmissions11/solmate --no-git
 forge test                      # 55 tests, at both 6dp and 18dp
 
 # see the venue as it is, and what Ballast would post — signs nothing
@@ -151,6 +153,8 @@ pnpm quote                      # DRY_RUN=true by default
 # the dashboard
 cd ../web && npm install && npm run dev
 ```
+
+The SDK is pinned exactly in `bot/package.json`, and it matters — `@somnia-chain/markets-sdk` shipped ten releases in 28 days ([§5.1](./ARCHITECTURE.md)).
 
 `doctor` and `shadow` are read-only and safe to point at mainnet:
 
@@ -183,7 +187,7 @@ Nine SDK and documentation issues found while building, each with a reproduction
 | `test/` | 55 tests, every one mapped to a numbered invariant — including the adversarial suite |
 | `bot/` | The quoter, plus `doctor`, `shadow`, `setup`. Vendors `ec-core` |
 | `web/` | The dashboard — reads the indexer and the vault directly, no backend |
-| `scripts/` | `check-pricing-mirror.sh` — fails if the page and the quoter ever price differently |
+| `script/` | `Deploy.s.sol`, and `check-pricing-mirror.sh` — which fails if the page and the quoter ever price differently |
 
 ---
 
