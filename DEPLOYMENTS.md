@@ -60,5 +60,5 @@ for mainnet: read it off a live market rather than assuming it matches testnet.
 
 ## Front end
 
-https://ballast-jet.vercel.app — Vercel, production. Built from `web/`.
+https://projectballast.vercel.app — Vercel, production. Built from `web/`.
 Redeploy with `vercel deploy --prod --yes --scope madhavgupta28s-projects` from the repo root.

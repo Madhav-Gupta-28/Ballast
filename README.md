@@ -1,6 +1,6 @@
 # Ballast
 
-**Live:** https://ballast-jet.vercel.app
+**Live:** https://projectballast.vercel.app
 
 **A pooled counterparty for DreamDEX event contracts, so the book is never empty.**
 
