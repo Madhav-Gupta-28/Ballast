@@ -93,8 +93,16 @@ export class IndexerDown extends Error {
   }
 }
 
-/** Long enough for a healthy indexer, short enough that an outage is not a hang. */
-const GQL_TIMEOUT_MS = 8_000;
+/**
+ * Long enough for a healthy indexer, short enough that an outage is not a hang.
+ *
+ * Measured rather than guessed. A healthy testnet indexer answers this query in
+ * 1.9-4.8s; under load it has been seen at 11.8s; when it gives up entirely it
+ * takes 32s to say so. Twelve seconds sits above the slow tail and well under
+ * the gateway's own limit, so a slow venue is waited for and a dead one is
+ * reported rather than sat on. The table renders behind a skeleton either way.
+ */
+const GQL_TIMEOUT_MS = 12_000;
 
 async function gql<T>(url: string, query: string): Promise<T> {
   let r: Response;
