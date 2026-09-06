@@ -61,4 +61,19 @@ for mainnet: read it off a live market rather than assuming it matches testnet.
 ## Front end
 
 https://projectballast.vercel.app — Vercel, production. Built from `web/`.
+
+`NEXT_PUBLIC_VAULT_ADDRESS` must be set **on the Vercel project**, not only in a
+local `.env.production`. That file is untracked, so a deploy run from a machine
+that happens to have it works and one run from anywhere else silently does not —
+the vault panel renders *"Vault not configured"* and every figure on `/app`
+shows as a dash. The site still builds, still returns 200, and says nothing in
+the logs, which is what made it worth writing down.
+
+```bash
+echo -n 0xEfEb51b07c70e891c95aFdB05aeD2139a40B3905 \
+  | vercel env add NEXT_PUBLIC_VAULT_ADDRESS production
+```
+
+Set for production, preview and development. Redeploy after adding it — env
+vars are read at build time, so an existing deployment does not pick them up.
 Redeploy with `vercel deploy --prod --yes --scope madhavgupta28s-projects` from the repo root.
