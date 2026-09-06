@@ -83,6 +83,13 @@ contract BallastVault is ERC20, ReentrancyGuard {
      */
     uint256 public constant MAX_POOLS = 64;
 
+    /// @dev The venue's four order kinds. Only the buys are named because only
+    ///      they need collateral escrowed — a sell is covered by the outcome
+    ///      tokens the vault already holds.
+    ///      0 BUY_YES · 1 SELL_YES · 2 BUY_NO · 3 SELL_NO
+    uint8 internal constant BUY_YES = 0;
+    uint8 internal constant BUY_NO = 2;
+
     /// @dev Gas ceilings on the per-pool reads in `legTotals`. Generous for a
     ///      view returning a static struct, and low enough that 64 uncooperative
     ///      pools still cannot exhaust a block.
@@ -178,7 +185,7 @@ contract BallastVault is ERC20, ReentrancyGuard {
     /**
      * @notice Net asset value in raw collateral units.
      *
-     * NAV = idle collateral + matched sets + the longer leg's residual.
+     * NAV = idle collateral + matched sets. Nothing else.
      *
      * A matched pair is worth exactly one collateral whatever happens, so it is
      * carried at par. The residual imbalance is carried at ZERO — the most
@@ -299,6 +306,10 @@ contract BallastVault is ERC20, ReentrancyGuard {
      *      balance reverts rather than force-unwinding live quotes — the
      *      operator flattens first, then the withdrawal succeeds. Depositors
      *      are never silently paid out of a position that has not been closed.
+     *
+     *      Deliberately not gated on `paused`. Pausing stops new money going in
+     *      and stops the operator trading; it must never trap money already in.
+     *      Asserted by `test_withdraw_worksWhilePausedSoDepositorsAreNeverTrapped`.
      */
     function withdraw(uint256 shares) external nonReentrant returns (uint256 amountOut) {
         if (shares == 0) revert ZeroAmount();
@@ -332,10 +343,6 @@ contract BallastVault is ERC20, ReentrancyGuard {
         if (amount == 0) revert ZeroAmount();
         IBinaryPool(pool).burnSet(amount);
     }
-
-    /// @notice 0 BUY_YES · 1 SELL_YES · 2 BUY_NO · 3 SELL_NO.
-    uint8 internal constant BUY_YES = 0;
-    uint8 internal constant BUY_NO = 2;
 
     /**
      * @notice Place a limit order on an allowlisted pool.
@@ -489,6 +496,13 @@ contract BallastVault is ERC20, ReentrancyGuard {
      *
      *      Only removable once the vault holds nothing there, so purging can
      *      never erase live value — the check is the whole safety property.
+     *
+     *      Which is also its limit: a pool that stops answering cannot be
+     *      purged, because emptiness can no longer be proven. `legTotals`
+     *      tolerates such a pool by counting it as zero, so the vault keeps
+     *      working and the entry is merely permanent. Forcing the removal would
+     *      mean trusting the owner not to erase live value, which is the bug
+     *      this check exists to prevent.
      */
     function purgePool(address pool) external onlyOwner {
         IBinaryPool.BinaryPoolParams memory p = IBinaryPool(pool).getBinaryPoolParams();

@@ -13,6 +13,4 @@ interface IOutcomeToken {
 
     /// @notice One approval covers both legs for a given pool.
     function setOperator(address spender, bool approved) external returns (bool);
-
-    function isOperator(address owner, address spender) external view returns (bool);
 }

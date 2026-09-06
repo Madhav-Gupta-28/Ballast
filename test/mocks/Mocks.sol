@@ -30,9 +30,6 @@ contract MockOutcomeToken is IOutcomeToken {
         return true;
     }
 
-    function isOperator(address owner, address spender) external view returns (bool) {
-        return _op[owner][spender];
-    }
 
     function mintTo(address to, uint256 id, uint256 amount) external {
         _bal[to][id] += amount;
