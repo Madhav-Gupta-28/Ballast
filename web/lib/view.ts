@@ -1,4 +1,4 @@
-import { getMarkets, getVault, NETWORK, type MarketView } from "@/lib/somnia";
+import { getMarkets, getVault, NETWORK, IndexerDown, type MarketView } from "@/lib/somnia";
 
 export const NET = "testnet" as const;
 export const VAULT = process.env.NEXT_PUBLIC_VAULT_ADDRESS ?? "";
@@ -10,6 +10,8 @@ export interface Snapshot {
   quotable: MarketView[];
   vault: Awaited<ReturnType<typeof getVault>>;
   feedError: string | null;
+  /** The venue did not answer at all, as opposed to answering badly. */
+  feedDown: boolean;
   meanBook: number;
   meanOurs: number;
   savedPct: number;
@@ -42,12 +44,16 @@ export function snapshot(): Promise<Snapshot> {
 async function read(): Promise<Snapshot> {
   const [marketsResult, vault] = await Promise.all([
     getMarkets(NET, HALF_SPREAD, VAULT).then(
-      (m) => ({ markets: m, feedError: null as string | null }),
-      (e: Error) => ({ markets: [] as MarketView[], feedError: e.message }),
+      (m) => ({ markets: m, feedError: null as string | null, feedDown: false }),
+      (e: Error) => ({
+        markets: [] as MarketView[],
+        feedError: e.message,
+        feedDown: e instanceof IndexerDown,
+      }),
     ),
     VAULT ? getVault(NET, VAULT) : Promise.resolve(null),
   ]);
-  const { markets, feedError } = marketsResult;
+  const { markets, feedError, feedDown } = marketsResult;
 
   const quotable = markets.filter(
     (m) =>
@@ -64,6 +70,7 @@ async function read(): Promise<Snapshot> {
     quotable,
     vault,
     feedError,
+    feedDown,
     meanBook,
     meanOurs,
     savedPct: meanBook > 0 ? ((meanBook - meanOurs) / meanBook) * 100 : 0,

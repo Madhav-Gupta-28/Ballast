@@ -435,6 +435,13 @@ input[type="range"]::-moz-range-thumb {
 .ctl-row .k { font-family: var(--font-mono), monospace; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
 .ctl-row .v { font-family: var(--font-mono), monospace; font-size: 21px; font-weight: 500; color: var(--accent); letter-spacing: -0.02em; }
 .ctl-note { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+/* An upstream outage the page cannot fix but must not hide. Amber rather than
+   red: nothing is broken here, something is unavailable there. */
+.note {
+  margin: 0; font-size: 13px; line-height: 1.55; color: var(--muted);
+  border-left: 2px solid var(--amber); padding-left: 12px; max-width: 68ch;
+}
 .ctl-note b { color: var(--ink-3); }
 .lab-out { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 4px 0 0; padding-top: 15px; border-top: 1px solid var(--rule); }
 .lab-out div { display: flex; flex-direction: column; gap: 4px; }

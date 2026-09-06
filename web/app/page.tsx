@@ -49,6 +49,18 @@ async function LiveProof() {
           <div className="k">Still one-sided</div>
         </div>
       </div>
+
+      {/* Zeroes here would read as "this does nothing" rather than "the venue is
+          not answering", which is the opposite of true and the worse of the two
+          things to leave a reader believing. */}
+      {s.feedDown && (
+        <p className="note" style={{ marginTop: 18 }}>
+          Those counts are zero because Somnia&rsquo;s testnet indexer is not answering right now
+          ({s.feedError}) — not because there is nothing to quote. The vault figure beside them
+          comes from the RPC and is current. The mainnet numbers further down were counted from the
+          production indexer and do not depend on it.
+        </p>
+      )}
     </>
   );
 }

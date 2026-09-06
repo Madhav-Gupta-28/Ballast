@@ -63,9 +63,20 @@ async function LiveTable() {
             {s.markets.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ color: s.feedError ? "var(--amber)" : "var(--muted)" }}>
-                  {s.feedError
-                    ? `Could not read the venue: ${s.feedError}`
-                    : "No live markets on this venue right now."}
+                  {s.feedDown ? (
+                    <>
+                      Somnia&rsquo;s testnet indexer is not answering ({s.feedError}). The venue is
+                      where this table&rsquo;s order books come from, so there is nothing to show
+                      until it recovers.
+                      <br />
+                      The vault below is read straight from the RPC and is unaffected — its balance
+                      and its cap are current.
+                    </>
+                  ) : s.feedError ? (
+                    `The venue answered, but not with a book: ${s.feedError}`
+                  ) : (
+                    "No live markets on this venue right now."
+                  )}
                 </td>
               </tr>
             )}

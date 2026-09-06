@@ -100,7 +100,7 @@ ballast quoter
 
 ```bash
 # contracts
-forge test                      # 42 tests, run at both 6dp and 18dp
+forge test                      # 55 tests, run at both 6dp and 18dp
 
 # see the venue as it is, and what Ballast would post — signs nothing
 cd bot && pnpm install
@@ -126,7 +126,7 @@ cd ../web && npm install && npm run dev
 | [`FEEDBACK.md`](./FEEDBACK.md) | Nine SDK/docs issues found while building, with reproductions |
 | [`DEPLOYMENTS.md`](./DEPLOYMENTS.md) | Addresses, and the Somnia gas note that cost two failed deploys |
 | `src/` | `BallastVault.sol` and the DreamDEX interfaces |
-| `test/` | 42 tests, every one mapped to a numbered invariant |
+| `test/` | 55 tests, every one mapped to a numbered invariant |
 | `bot/` | The quoter, `doctor`, `shadow`, `setup`. Vendors `ec-core`. |
 | `web/` | The dashboard |
 

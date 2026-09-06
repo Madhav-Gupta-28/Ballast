@@ -75,14 +75,48 @@ export interface MarketView {
   ballastIsQuoting: boolean;
 }
 
+/**
+ * The indexer is a dependency this page does not control, and it does go down.
+ * When it does it answers 504 with an HTML body after about half a minute, so
+ * a naive `r.json()` reports a JSON parse error and a naive `await` holds the
+ * whole page for thirty seconds first.
+ *
+ * `unreachable` marks the difference between "the venue said no" — our query is
+ * wrong, which is our problem — and "the venue did not answer", which is not,
+ * and which the page should say plainly rather than dress up as an error.
+ */
+export class IndexerDown extends Error {
+  readonly unreachable = true;
+  constructor(readonly detail: string) {
+    super(detail);
+    this.name = "IndexerDown";
+  }
+}
+
+/** Long enough for a healthy indexer, short enough that an outage is not a hang. */
+const GQL_TIMEOUT_MS = 8_000;
+
 async function gql<T>(url: string, query: string): Promise<T> {
-  const r = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ query }),
-    cache: "no-store",
+  let r: Response;
+  try {
+    r = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(GQL_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const timedOut = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+    throw new IndexerDown(timedOut ? `no answer in ${GQL_TIMEOUT_MS / 1000}s` : "unreachable");
+  }
+
+  // A gateway error carries an HTML body, so this has to come before json().
+  if (!r.ok) throw new IndexerDown(`HTTP ${r.status}`);
+
+  const j = await r.json().catch(() => {
+    throw new IndexerDown("answered with something that is not JSON");
   });
-  const j = await r.json();
   if (j.errors) throw new Error(j.errors[0]?.message ?? "indexer error");
   return j.data as T;
 }

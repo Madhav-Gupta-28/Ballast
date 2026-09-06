@@ -1,2 +1,6 @@
+# esbuild ships a platform-specific binary and needs its postinstall to run.
+# pnpm blocks build scripts by default and then exits non-zero, which takes
+# every other script down with it — `pnpm test` and `pnpm typecheck` both fail
+# on a fresh clone with ERR_PNPM_IGNORED_BUILDS before running anything.
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
