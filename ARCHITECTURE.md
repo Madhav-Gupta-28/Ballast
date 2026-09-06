@@ -55,7 +55,7 @@ Pooled market making is not new. Automated market makers are not new. Three thin
 
 2. **Its risk is one scalar, and it is not directional.** A complete set redeems to exactly one collateral whichever way the market resolves. The vault's entire exposure is therefore the *imbalance* between its YES and NO holdings, not the size of either. This is stated in the venue's own source ([§9](#9-the-risk-model)).
 
-3. **It is a liquidity primitive aimed at a venue that has none.** Across 5,000 settled markets, 83.5% never saw a single trade and lifetime volume is about 3,834 USDso ([§4](#4-why-this-venue-needs-this-thing)). Ballast is not competing for flow on a busy book; it is the reason a book exists.
+3. **It is a liquidity primitive aimed at a venue that has none.** Across 5,000 settled markets, 83.5% never saw a single trade and lifetime volume is about 3,882 USDso ([§4](#4-why-this-venue-needs-this-thing)). Ballast is not competing for flow on a busy book; it is the reason a book exists.
 
 ### What this is not
 
@@ -241,26 +241,28 @@ The last row is important and is why [§6](#6-integer-arithmetic-the-tick-grid-a
 
 ## 4. Why this venue needs this thing
 
-This section is evidence, not argument. All figures from the mainnet indexer on 2026-09-01, over a 5,000-market sample (the query limit — the true totals may be larger).
+This section is evidence, not argument. All figures re-read from the mainnet indexer on **2026-09-06**, over a 5,000-market sample (the query limit — the true totals may be larger). The venue is live, so these drift; the reproduce command below is the authority, not this table.
 
 | | |
 | --- | --- |
-| BINARY markets sampled | **5,000** (all finalized, 0 voided) |
-| Markets with **zero** trades | **4,174 — 83.5%** |
-| Markets with ≥1 trade | 826 — 16.5% |
-| Total trades, all markets | **4,754** |
-| **Total lifetime volume** | **3,833.91 USDso** |
-| Mean volume per market | **0.77 USDso** |
+| BINARY markets sampled | **5,000** (4,996 finalized) |
+| Markets with **zero** trades | **4,175 — 83.5%** |
+| Markets with ≥1 trade | 825 — 16.5% |
+| Total trades, all markets | **4,758** |
+| **Total lifetime volume** | **3,881.75 USDso** |
+| Mean volume per market | **0.78 USDso** |
 
-And the busiest markets in the venue's history:
+And the most-traded markets in the venue's history:
 
 | Asset | Interval | Trades | Volume |
 | --- | --- | ---: | ---: |
-| BTC | 3600 s | 100 | **0.01 USDso** |
-| BTC | 3600 s | 58 | 0.01 USDso |
-| BTC | 3600 s | 44 | 0.01 USDso |
+| BTC | 3600 s | 100 | **0.0058 USDso** |
+| BTC | 3600 s | 58 | 0.0092 USDso |
+| BTC | 3600 s | 44 | 0.0089 USDso |
 
-> **The single most-traded event-contract market in DreamDEX's history did 100 trades totalling one cent.**
+> **The single most-traded event-contract market in DreamDEX's history did 100 trades totalling 0.0058 USDso — well under a cent.**
+
+Note the second row. The busiest market by *trade count* is not the busiest by *volume* — 58 trades moved more money than 100 did. At two decimal places all three round to `0.01` and that detail disappears, which is why the figures here are carried to four.
 
 Any judge can reproduce this in thirty seconds against the public indexer. It is the strongest available statement of the problem, and it is the reason the pitch leads with liquidity rather than analytics.
 
