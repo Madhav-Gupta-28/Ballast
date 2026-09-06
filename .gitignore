@@ -38,3 +38,6 @@ next-env.d.ts
 *.tsbuildinfo
 .vercel
 .env*
+
+# Forge broadcast artifacts, including failed deploys. DEPLOYMENTS.md is the record.
+broadcast/
